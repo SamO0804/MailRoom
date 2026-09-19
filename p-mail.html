@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Correspondence Desk</title>
+<style>
+  :root{
+    --wall:#5b6b63; --wall-dark:#465650;
+    --floor:#6b4a30; --floor-dark:#4f3521;
+    --paper:#f2ead8; --paper-line:#cbbf9d;
+    --ink:#2b241a;
+    --wax:#8f1d2c; --wax-dark:#6c141f;
+    --brass:#b98a3a;
+    --panel-bg:#efe6d2; --panel-border:#a9926a;
+    --btn-bg:#efe6d2; --btn-text:#2b241a; --btn-border:#a9926a;
+    --overlay-bg:rgba(20,16,10,0.62);
+    --page-bg:#fbf8f0;
+    --body-bg:#2c2622;
+    --toast-bg:#2b241a; --toast-text:#f2ead8;
+    --muted:#6a6050;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --panel-bg:#2a231a; --panel-border:#6b5738;
+      --btn-bg:#332a1e; --btn-text:#f2ead8; --btn-border:#6b5738;
+      --page-bg:#efe6d2; --muted:#b9ad8f;
+      --body-bg:#161310;
+    }
+  }
+  :root[data-theme="dark"]{
+    --panel-bg:#2a231a; --panel-border:#6b5738;
+    --btn-bg:#332a1e; --btn-text:#f2ead8; --btn-border:#6b5738;
+    --page-bg:#efe6d2; --muted:#b9ad8f;
+    --body-bg:#161310;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--body-bg);
+    font-family: Georgia, 'Times New Roman', serif;
+    color:var(--btn-text);
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:16px;
+  }
+  #stage{
+    position:relative;
+    width:100%;
+    max-width:1200px;
+    aspect-ratio: 1200 / 720;
+    border-radius:6px;
+    overflow:hidden;
+    box-shadow:0 10px 40px rgba(0,0,0,0.45);
+    touch-action:none;
+  }
+  #scene{
+    width:100%;
+    height:100%;
+    display:block;
+    cursor: grab;
+  }
+  #scene.dragging{ cursor:grabbing; }
+
+  /* ---------- HUD ---------- */
+  #hud{
+    position:absolute; top:12px; left:12px; right:12px;
+    display:flex; align-items:flex-start; justify-content:space-between;
+    pointer-events:none;
+    font-family: Georgia, serif;
+  }
+  #hud > *{ pointer-events:auto; }
+  .hud-left{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .pile-count{
+    background:rgba(20,16,10,0.55);
+    color:#f2ead8;
+    padding:6px 12px;
+    border-radius:14px;
+    font-size:13px;
+    letter-spacing:0.02em;
+  }
+  button{ font-family:inherit; }
+  .wax-btn{
+    background: var(--wax);
+    color:#fbf1e6;
+    border:1px solid var(--wax-dark);
+    padding:9px 16px;
+    border-radius:3px;
+    font-size:14px;
+    cursor:pointer;
+    box-shadow: 0 2px 0 var(--wax-dark);
+  }
+  .wax-btn:active{ transform:translateY(1px); box-shadow:none; }
+  .help-btn{
+    background:rgba(20,16,10,0.55);
+    color:#f2ead8;
+    border:1px solid rgba(255,255,255,0.25);
+    width:30px;height:30px;border-radius:50%;
+    cursor:pointer; font-size:14px;
+  }
+
+  /* ---------- overlays ---------- */
+  .overlay{
+    position:absolute; inset:0;
+    background:var(--overlay-bg);
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+    z-index:20;
+  }
+  .overlay.hidden{ display:none; }
+
+  /* reading sheet */
+  .paper-sheet{
+    background:var(--page-bg);
+    color:var(--ink);
+    width:min(520px, 100%);
+    max-height:90%;
+    overflow:auto;
+    padding:26px 28px 20px;
+    border-radius:2px;
+    box-shadow:0 14px 34px rgba(0,0,0,0.5);
+    position:relative;
+    transform:rotate(-0.4deg);
+  }
+  .letterhead{
+    display:flex; flex-direction:column; gap:2px;
+    border-bottom:1px solid var(--paper-line);
+    padding-bottom:10px; margin-bottom:14px;
+  }
+  .letterhead .from{ font-weight:bold; font-size:15px; }
+  .letterhead .subject{ font-style:italic; color:var(--muted); font-size:13px; }
+  .letter-body{
+    font-size:15px; line-height:1.6; white-space:pre-wrap;
+    min-height:120px;
+  }
+  .stamp-btn{
+    margin-top:20px;
+    background:var(--btn-bg); color:var(--btn-text);
+    border:1.5px dashed var(--btn-border);
+    padding:8px 14px; border-radius:3px; cursor:pointer; font-size:13px;
+  }
+
+  /* compose */
+  .compose-wrap{
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    max-height:95%;
+  }
+  .compose-toolbar{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  .tool-btn{
+    background:var(--btn-bg); color:var(--btn-text);
+    border:1px solid var(--btn-border);
+    padding:8px 14px; border-radius:3px; cursor:pointer; font-size:13px;
+  }
+  .tool-btn.active{ background:var(--wax); color:#fbf1e6; border-color:var(--wax-dark); }
+  .tool-btn.primary{ background:#3c5a44; color:#fbf1e6; border-color:#2b4231; }
+  .tool-btn.ghost{ background:transparent; color:#f2ead8; border-color:rgba(255,255,255,0.4); }
+  .page-flipper{
+    position:relative;
+    width:min(360px, 80vw);
+    height:min(460px, 55vh);
+    transition: transform .15s ease;
+    box-shadow:0 10px 28px rgba(0,0,0,0.5);
+  }
+  .page-flipper.flip-anim{ transform:scaleX(0.04); }
+  .page-flipper canvas{
+    position:absolute; inset:0; width:100%; height:100%;
+    background:var(--page-bg);
+    border-radius:2px;
+    touch-action:none;
+  }
+  .side-label{ color:#f2ead8; font-size:12px; letter-spacing:0.04em; opacity:0.8; }
+
+  /* envelope modal */
+  .envelope-wrap{
+    display:flex; flex-direction:column; align-items:center; gap:16px;
+    max-height:95%; overflow:auto; padding:4px;
+  }
+  .envelope-visual{
+    width:min(340px, 80vw); height:210px;
+    position:relative;
+    background:#d8c9a3;
+    border:1px solid #a9926a;
+    border-radius:3px;
+    box-shadow:0 10px 26px rgba(0,0,0,0.5);
+  }
+  .flap{
+    position:absolute; top:0; left:0; right:0; height:0;
+    border-left:170px solid transparent;
+    border-right:170px solid transparent;
+    border-top:105px solid #c9b78c;
+    transition: border-top-width .25s ease, opacity .25s ease;
+  }
+  .envelope-visual.flap-closed .flap{ border-top-width:0; opacity:0; }
+  .drop-zone{
+    position:absolute; left:14px; right:14px; top:60px; bottom:14px;
+    border:2px dashed #8a7852;
+    border-radius:3px;
+    display:flex; align-items:center; justify-content:center;
+    color:#6a5a3a; font-size:12px; text-align:center; padding:8px;
+  }
+  .drop-zone.filled{ border-style:solid; }
+  .drop-zone.hidden-zone{ display:none; }
+  .inserted-letter{
+    position:absolute; left:50%; top:34px; transform:translateX(-50%) rotate(-1deg);
+    width:70%; height:60px; background:#fbf8f0; border:1px solid #cbbf9d;
+    box-shadow:0 3px 8px rgba(0,0,0,0.3);
+  }
+  .wax-mark{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width:46px; height:46px; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, #b83a48, var(--wax) 55%, var(--wax-dark) 100%);
+    box-shadow:0 3px 6px rgba(0,0,0,0.4);
+  }
+  .wax-mark::after{
+    content:"✉"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:rgba(255,255,255,0.55); font-size:16px;
+  }
+  .envelope-visual.seal-mode{ cursor:crosshair; outline:2px dashed var(--wax); outline-offset:3px; }
+  .tray-row{
+    display:flex; gap:10px; flex-wrap:wrap; justify-content:center;
+    max-width:420px;
+  }
+  .folded-thumb{
+    width:64px; height:44px; background:#fbf8f0; border:1px solid #cbbf9d;
+    border-radius:2px; display:flex; align-items:center; justify-content:center;
+    font-size:10px; color:#6a5a3a; cursor:grab; position:relative;
+  }
+  .folded-thumb::before{
+    content:""; position:absolute; left:0; right:0; top:50%; height:1px; background:#cbbf9d;
+  }
+  .envelope-actions{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+  .hint-text{ color:#f2ead8; font-size:12px; text-align:center; max-width:340px; opacity:0.85; }
+
+  /* toast */
+  .toast{
+    position:absolute; left:50%; bottom:22px; transform:translateX(-50%) translateY(10px);
+    background:var(--toast-bg); color:var(--toast-text);
+    padding:12px 18px; border-radius:4px; font-size:13px;
+    box-shadow:0 8px 22px rgba(0,0,0,0.4);
+    opacity:0; transition:opacity .25s ease, transform .25s ease;
+    z-index:30; max-width:min(420px, 90%);
+    display:flex; gap:12px; align-items:center;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast img{ width:40px; height:52px; object-fit:cover; border:1px solid #6a5a3a; background:#fff; }
+
+  /* help panel */
+  .help-panel{
+    position:absolute; inset:0; background:var(--overlay-bg);
+    display:flex; align-items:center; justify-content:center; z-index:25; padding:20px;
+  }
+  .help-panel.hidden{ display:none; }
+  .help-card{
+    background:var(--page-bg); color:var(--ink); max-width:420px; width:100%;
+    padding:22px 24px; border-radius:3px; box-shadow:0 14px 34px rgba(0,0,0,0.5);
+    font-size:14px; line-height:1.55;
+  }
+  .help-card h2{ margin:0 0 10px; font-size:17px; }
+  .help-card ul{ padding-left:18px; margin:0 0 14px; }
+  .help-card li{ margin-bottom:6px; }
+  .help-card button{ background:var(--wax); color:#fbf1e6; border:none; padding:8px 16px; border-radius:3px; cursor:pointer; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="scene" width="1200" height="720" aria-label="A hallway with a front door letterbox, a shredder, and a writing desk"></canvas>
+
+  <div id="hud">
+    <div class="hud-left">
+      <button class="wax-btn" id="checkMailBtn">Check Mail</button>
+      <div class="pile-count" id="pileCount">0 letters on the mat</div>
+    </div>
+    <button class="help-btn" id="helpBtn" title="How to play">?</button>
+  </div>
+
+  <div class="help-panel hidden" id="helpPanel">
+    <div class="help-card">
+      <h2>The Correspondence Desk</h2>
+      <ul>
+        <li><strong>Drag</strong> any letter to shuffle the pile out of your way.</li>
+        <li><strong>Click</strong> (without dragging) a letter to open and read it — closing it sends it straight to the shredder. No re-reading.</li>
+        <li><strong>Check Mail</strong> pulls in a couple of real-flavoured letters on demand; spam keeps falling through the slot on its own.</li>
+        <li>Click a <strong>blank page</strong> on the desk to write by hand — select the pen, draw, flip for the back, then fold.</li>
+        <li>Click a <strong>blank envelope</strong> to open it, drag a folded letter inside, close the flap, then pick up the <strong>wax seal</strong> and click the envelope's centre to seal it.</li>
+        <li>Drag a sealed envelope to the <strong>pigeon at the window</strong> to send it.</li>
+      </ul>
+      <button id="helpCloseBtn">Got it</button>
+    </div>
+  </div>
+
+  <!-- READ MODAL -->
+  <div class="overlay hidden" id="readModal">
+    <div class="paper-sheet">
+      <div class="letterhead">
+        <span class="from" id="readFrom"></span>
+        <span class="subject" id="readSubject"></span>
+      </div>
+      <div class="letter-body" id="readBody"></div>
+      <button class="stamp-btn" id="readCloseBtn">✕ Close &amp; Shred</button>
+    </div>
+  </div>
+
+  <!-- COMPOSE MODAL -->
+  <div class="overlay hidden" id="composeModal">
+    <div class="compose-wrap">
+      <div class="compose-toolbar">
+        <button class="tool-btn" id="penToolBtn">🖊 Pen</button>
+        <button class="tool-btn" id="flipBtn">⟲ Flip page</button>
+        <button class="tool-btn primary" id="foldBtn">Fold &amp; set aside</button>
+        <button class="tool-btn ghost" id="composeCancelBtn">Cancel</button>
+      </div>
+      <div class="page-flipper" id="pageFlipper">
+        <canvas id="pageCanvasFront" width="520" height="680"></canvas>
+        <canvas id="pageCanvasBack" width="520" height="680" style="display:none"></canvas>
+      </div>
+      <div class="side-label" id="sideLabel">Front — select the pen to write</div>
+    </div>
+  </div>
+
+  <!-- ENVELOPE MODAL -->
+  <div class="overlay hidden" id="envelopeModal">
+    <div class="envelope-wrap">
+      <div class="envelope-visual" id="envelopeVisual">
+        <div class="flap" id="envelopeFlap"></div>
+        <div class="drop-zone" id="dropZone">Drag a folded letter here</div>
+      </div>
+      <div class="tray-row" id="foldedTray"></div>
+      <div class="hint-text" id="envelopeHint">Drag a folded letter into the envelope.</div>
+      <div class="envelope-actions" id="envelopeActions"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script>
+(function(){
+'use strict';
+
+/* =========================================================
+   CONTENT POOLS
+   Swap pickRandom(REAL_CONTENT) below for a real fetch once
+   an email connector is wired in — see NOTE near fetchMail().
+   ========================================================= */
+var SPAM_CONTENT = [
+  { from:"Prize Committee (Intl.)", subject:"YOU HAVE BEEN SELECTED", body:"Congratulations! Our records indicate you are eligible for an unclaimed reward. Reply within 24 hours with your full details to avoid forfeiture. This is not a scam." },
+  { from:"Definitely A Real Bank", subject:"Urgent: verify your account", body:"We noticed unusual activity. Click nowhere, just open this letter fully and post your card back to us in the enclosed (imaginary) envelope." },
+  { from:"Cedric's Extended Warranty Co.", subject:"Your vehicle's warranty is expiring", body:"Dear Vehicle Owner, this is your final, final, truly final notice. Act today. Or tomorrow. We will write again regardless." },
+  { from:"Lucky Star Sweepstakes", subject:"A cheque for you is enclosed*", body:"*Cheque not actually enclosed. Please send a small processing fee to receive the cheque that is not enclosed." },
+  { from:"Royal Heir Support Desk", subject:"Distant relative has left you a fortune", body:"A relative you have never heard of has named you sole heir to an estate you cannot verify. Kindly respond with your bank routing number." },
+  { from:"The Discount Gutter Guys", subject:"WE NOTICED YOUR GUTTERS", body:"From the street. While driving past. At speed. Call now for a free estimate you did not ask for." },
+  { from:"Timeshare Freedom Alliance", subject:"Get out of your timeshare TODAY", body:"You may already qualify for early release from an agreement we don't actually know the terms of. Certain restrictions apply, mostly to you." },
+  { from:"Miracle Mattress Depot", subject:"This weekend only (also last weekend)", body:"Every mattress in the store is on sale, as it has been continuously since the store opened." },
+  { from:"Neighbourhood Watch Newsletter", subject:"Someone's bin was in the wrong place", body:"A full report on bin placement irregularities from the last fortnight, cross-referenced by street." },
+  { from:"Cruise Line You've Never Booked", subject:"Your complimentary cruise awaits", body:"Two nights, one port, several hidden fees. Just attend a 90 minute presentation first." }
+];
+
+var REAL_CONTENT = [
+  { from:"Council Tax Office", subject:"Annual statement enclosed", body:"Please find enclosed your annual statement. No action is required unless you disagree, in which case quite a lot of action is required." },
+  { from:"Aunt Rosalind", subject:"Just a little note", body:"Thinking of you — do come and visit when you have a moment. Bring biscuits, we're out." },
+  { from:"Riverside Book Club", subject:"Next month's pick", body:"We've chosen something nobody will finish in time again. First Tuesday, usual place." },
+  { from:"Harbour View Clinic", subject:"Appointment reminder", body:"This confirms your upcoming appointment. Please arrive ten minutes early to fill out a form you filled out last time too." },
+  { from:"Local Allotment Society", subject:"Committee minutes", body:"Discussed: the fence, the tap, and, once again, the fence." },
+  { from:"Former Housemate", subject:"Found this while unpacking", body:"Pretty sure this is yours — let me know where to send the rest of it." },
+  { from:"Energy Provider", subject:"Your latest reading", body:"Thank you for your recent meter submission. Your next statement will follow as usual." },
+  { from:"Old University Friend", subject:"Long overdue catch up", body:"It's been far too long. Are you around next month? No pressure, just say the word." }
+];
+
+function pickRandom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function uid(){ return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+
+/* =========================================================
+   SCENE LAYOUT (logical 1200x720 space)
+   ========================================================= */
+var W = 1200, H = 720;
+var FLOOR_Y = 560;
+var DOOR = { x:470, y:80, w:260, h:480 };
+var SLOT = { x: DOOR.x + DOOR.w/2, y: DOOR.y + DOOR.h - 130, w:110, h:18 };
+var MAT  = { x:430, y:566, w:340, h:82 };
+var SHREDDER = { x:60, y:420, w:180, h:170 };
+var DESK = { x:955, y:470, w:205, h:120 };
+var WINDOW_A = { x:945, y:120, w:225, h:260 };
+var PIGEON = { x: WINDOW_A.x + 168, y: WINDOW_A.y + 200 };
+
+var WALL_LEFT = 372, WALL_RIGHT = 828;
+var MAX_PILE = 50;
+
+/* =========================================================
+   MATTER SETUP
+   ========================================================= */
+var Engine = Matter.Engine, World = Matter.World, Bodies = Matter.Bodies,
+    Body = Matter.Body, Mouse = Matter.Mouse, MouseConstraint = Matter.MouseConstraint,
+    Events = Matter.Events, Query = Matter.Query, Runner = Matter.Runner;
+
+var engine = Engine.create();
+engine.gravity.y = 1;
+var world = engine.world;
+
+var ground = Bodies.rectangle(600, 760, 1100, 80, { isStatic:true });
+var leftWall = Bodies.rectangle(WALL_LEFT-10, 420, 20, 900, { isStatic:true });
+var rightWall = Bodies.rectangle(WALL_RIGHT+10, 420, 20, 900, { isStatic:true });
+World.add(world, [ground, leftWall, rightWall]);
+
+var canvas = document.getElementById('scene');
+var ctx = canvas.getContext('2d');
+
+var mouse = Mouse.create(canvas);
+function syncMouseScale(){
+  var rect = canvas.getBoundingClientRect();
+  Mouse.setScale(mouse, { x: W / rect.width, y: H / rect.height });
+  Mouse.setOffset(mouse, { x: 0, y: 0 });
+}
+syncMouseScale();
+window.addEventListener('resize', syncMouseScale);
+
+var mouseConstraint = MouseConstraint.create(engine, {
+  mouse: mouse,
+  constraint: { stiffness: 0.15, damping: 0.15, render: { visible:false } }
+});
+World.add(world, mouseConstraint);
+
+var runner = Runner.create();
+Runner.run(runner, engine);
+
+/* =========================================================
+   STATE
+   ========================================================= */
+var physicsObjects = []; // {body, kind:'mail'|'folded'|'sealed', ...meta}
+var foldedLetters = [];  // {id, frontPNG, backPNG, used}
+var flyingSprites = [];  // shred animation
+var shredParticles = [];
+var pigeonFlap = 0; // >0 while pigeon animates
+var spamTimer = null;
+var lastMailCount = 0;
+
+var trayItems = [
+  { id:'blankPage',    x: DESK.x+14,  y: DESK.y-6,  w:62, h:82, type:'page' },
+  { id:'blankEnvelope',x: DESK.x+96,  y: DESK.y+18, w:70, h:48, type:'envelope' },
+  { id:'waxSeal',      x: DESK.x+18,  y: DESK.y+92, w:26, h:26, type:'seal' },
+  { id:'pen',          x: DESK.x+150, y: DESK.y+92, w:40, h:10, type:'pen' }
+];
+
+/* =========================================================
+   LETTER / OBJECT SPAWNING
+   ========================================================= */
+function mailCount(){
+  var n = 0;
+  for (var i=0;i<physicsObjects.length;i++){ if (physicsObjects[i].kind==='mail') n++; }
+  return n;
+}
+
+function spawnLetter(flavor){
+  if (mailCount() >= MAX_PILE) return false;
+  var w = 72 + Math.random()*8, h = 44 + Math.random()*6;
+  var x = SLOT.x + (Math.random()*40-20);
+  var y = SLOT.y - 4;
+  var body = Bodies.rectangle(x, y, w, h, {
+    restitution: 0.12,
+    friction: 0.75,
+    frictionAir: 0.02,
+    density: 0.0018,
+    angle: (Math.random()*0.5-0.25),
+    chamfer: { radius: 3 }
+  });
+  Body.setAngularVelocity(body, (Math.random()*0.12-0.06));
+  Body.setVelocity(body, { x:(Math.random()*1.2-0.6), y: 1.5 });
+  World.add(world, body);
+  var content = flavor==='spam' ? pickRandom(SPAM_CONTENT) : pickRandom(REAL_CONTENT);
+  var obj = { body:body, kind:'mail', id:uid(), flavor:flavor, w:w, h:h,
+    from: content.from, subject: content.subject, body_text: content.body };
+  physicsObjects.push(obj);
+  return true;
+}
+
+function scheduleSpam(){
+  var delay = 1600 + Math.random()*2600;
+  spamTimer = setTimeout(function(){
+    spawnLetter('spam');
+    scheduleSpam();
+  }, delay);
+}
+scheduleSpam();
+
+/* NOTE — real inbox hook point:
+   fetchMail() below currently generates simulated "real-flavoured"
+   content from REAL_CONTENT. To pull an actual inbox, this is where
+   you'd request the `mcp` runtime capability with a connected email
+   connector's manifest, call its message-list/get-message tools, and
+   map the results into {from, subject, body} before calling
+   spawnLetter('real') for each one — swapping pickRandom(REAL_CONTENT)
+   for the real payload. Sending (see sendLetter()) would work the
+   same way with a send-message tool. */
+function fetchMail(){
+  var n = 1 + Math.floor(Math.random()*2);
+  var added = 0;
+  for (var i=0;i<n;i++){
+    (function(i){
+      setTimeout(function(){
+        if (spawnLetter('real')) added++;
+      }, i*220);
+    })(i);
+  }
+  if (mailCount() >= MAX_PILE){
+    showToast('No room on the mat for more — clear some letters first.');
+  }
+}
+document.getElementById('checkMailBtn').addEventListener('click', fetchMail);
+
+function spawnFolded(letterId){
+  var x = DESK.x + 20 + Math.random()*30, y = DESK.y - 40;
+  var body = Bodies.rectangle(x, y, 54, 36, {
+    restitution:0.1, friction:0.8, frictionAir:0.02, density:0.002,
+    angle:(Math.random()*0.3-0.15), chamfer:{radius:2}
+  });
+  World.add(world, body);
+  physicsObjects.push({ body:body, kind:'folded', id:uid(), letterId:letterId, w:54, h:36 });
+}
+
+function spawnSealed(folded){
+  var x = DESK.x + 30, y = DESK.y - 40;
+  var body = Bodies.rectangle(x, y, 74, 50, {
+    restitution:0.1, friction:0.8, frictionAir:0.02, density:0.0022,
+    angle:(Math.random()*0.2-0.1), chamfer:{radius:3}
+  });
+  World.add(world, body);
+  physicsObjects.push({ body:body, kind:'sealed', id:uid(), frontPNG:folded.frontPNG, backPNG:folded.backPNG, w:74, h:50 });
+}
+
+function removeObject(obj){
+  World.remove(world, obj.body);
+  var idx = physicsObjects.indexOf(obj);
+  if (idx>=0) physicsObjects.splice(idx,1);
+}
+
+/* =========================================================
+   READ / SHRED FLOW
+   ========================================================= */
+var readModal = document.getElementById('readModal');
+var readFrom = document.getElementById('readFrom');
+var readSubject = document.getElementById('readSubject');
+var readBody = document.getElementById('readBody');
+var readCloseBtn = document.getElementById('readCloseBtn');
+var activeReadObj = null;
+
+function openLetter(obj){
+  activeReadObj = obj;
+  readFrom.textContent = obj.from;
+  readSubject.textContent = obj.subject;
+  readBody.textContent = obj.body_text;
+  readModal.classList.remove('hidden');
+}
+
+readCloseBtn.addEventListener('click', function(){
+  readModal.classList.add('hidden');
+  if (!activeReadObj) return;
+  var pos = { x: activeReadObj.body.position.x, y: activeReadObj.body.position.y };
+  var w = activeReadObj.w, h = activeReadObj.h;
+  removeObject(activeReadObj);
+  activeReadObj = null;
+  flyToShredder(pos, w, h);
+});
+
+function flyToShredder(fromPos, w, h){
+  var target = { x: SHREDDER.x + SHREDDER.w/2, y: SHREDDER.y + 22 };
+  flyingSprites.push({
+    from: fromPos, to: target, start: performance.now(), duration: 320, w:w, h:h,
+    onDone: function(){ spawnShredParticles(target); }
+  });
+}
+
+function spawnShredParticles(at){
+  var colors = ['#efe6d2','#e3d6b3','#f2ead8'];
+  for (var i=0;i<7;i++){
+    shredParticles.push({
+      x: at.x + (Math.random()*20-10), y: at.y + 30,
+      vx: (Math.random()*2-1), vy: 1 + Math.random()*1.5,
+      w: 5+Math.random()*3, h: 14+Math.random()*8,
+      life: 1, decay: 0.012 + Math.random()*0.01,
+      color: colors[i%colors.length],
+      rot: Math.random()*Math.PI
+    });
+  }
+}
+
+/* =========================================================
+   COMPOSE (WRITE) FLOW
+   ========================================================= */
+var composeModal = document.getElementById('composeModal');
+var pageFront = document.getElementById('pageCanvasFront');
+var pageBack = document.getElementById('pageCanvasBack');
+var pageFlipper = document.getElementById('pageFlipper');
+var sideLabel = document.getElementById('sideLabel');
+var penToolBtn = document.getElementById('penToolBtn');
+var flipBtn = document.getElementById('flipBtn');
+var foldBtn = document.getElementById('foldBtn');
+var composeCancelBtn = document.getElementById('composeCancelBtn');
+
+var ctxFront = pageFront.getContext('2d');
+var ctxBack = pageBack.getContext('2d');
+var penSelected = false;
+var facingFront = true;
+var drawing = false;
+var lastPt = null;
+
+function clearPage(c){ c.fillStyle = '#fbf8f0'; c.fillRect(0,0,pageFront.width,pageFront.height); }
+
+function openCompose(){
+  clearPage(ctxFront); clearPage(ctxBack);
+  facingFront = true; penSelected = false;
+  pageFront.style.display='block'; pageBack.style.display='none';
+  penToolBtn.classList.remove('active');
+  sideLabel.textContent = 'Front — select the pen to write';
+  composeModal.classList.remove('hidden');
+}
+
+document.getElementById('composeCancelBtn').addEventListener('click', function(){
+  composeModal.classList.add('hidden');
+});
+
+penToolBtn.addEventListener('click', function(){
+  penSelected = !penSelected;
+  penToolBtn.classList.toggle('active', penSelected);
+  sideLabel.textContent = (facingFront?'Front':'Back') + (penSelected? ' — draw with your mouse':' — pen not selected');
+});
+
+flipBtn.addEventListener('click', function(){
+  pageFlipper.classList.add('flip-anim');
+  setTimeout(function(){
+    facingFront = !facingFront;
+    pageFront.style.display = facingFront? 'block':'none';
+    pageBack.style.display = facingFront? 'none':'block';
+    sideLabel.textContent = (facingFront?'Front':'Back') + (penSelected? ' — draw with your mouse':' — select the pen to write');
+  }, 150);
+  setTimeout(function(){ pageFlipper.classList.remove('flip-anim'); }, 300);
+});
+
+function pagePoint(evt){
+  var c = facingFront ? pageFront : pageBack;
+  var rect = c.getBoundingClientRect();
+  var cx = (evt.touches ? evt.touches[0].clientX : evt.clientX);
+  var cy = (evt.touches ? evt.touches[0].clientY : evt.clientY);
+  return { x: (cx-rect.left) * (c.width/rect.width), y: (cy-rect.top) * (c.height/rect.height) };
+}
+
+function drawStart(evt){
+  if (!penSelected) return;
+  drawing = true;
+  lastPt = pagePoint(evt);
+  evt.preventDefault();
+}
+function drawMove(evt){
+  if (!drawing || !penSelected) return;
+  var c = facingFront ? ctxFront : ctxBack;
+  var p = pagePoint(evt);
+  c.strokeStyle = '#26221c';
+  c.lineWidth = 2.6;
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  c.beginPath();
+  c.moveTo(lastPt.x, lastPt.y);
+  c.lineTo(p.x, p.y);
+  c.stroke();
+  lastPt = p;
+  evt.preventDefault();
+}
+function drawEnd(){ drawing = false; }
+
+pageFlipper.addEventListener('mousedown', drawStart);
+pageFlipper.addEventListener('mousemove', drawMove);
+window.addEventListener('mouseup', drawEnd);
+pageFlipper.addEventListener('touchstart', drawStart, {passive:false});
+pageFlipper.addEventListener('touchmove', drawMove, {passive:false});
+pageFlipper.addEventListener('touchend', drawEnd);
+
+foldBtn.addEventListener('click', function(){
+  var frontPNG = pageFront.toDataURL('image/png');
+  var backPNG = pageBack.toDataURL('image/png');
+  var id = uid();
+  foldedLetters.push({ id:id, frontPNG:frontPNG, backPNG:backPNG, used:false });
+  spawnFolded(id);
+  composeModal.classList.add('hidden');
+  showToast('Letter folded — it\u2019s waiting by the desk. Open an envelope when ready.');
+});
+
+/* =========================================================
+   ENVELOPE FLOW
+   ========================================================= */
+var envelopeModal = document.getElementById('envelopeModal');
+var envelopeVisual = document.getElementById('envelopeVisual');
+var envelopeFlap = document.getElementById('envelopeFlap');
+var dropZone = document.getElementById('dropZone');
+var foldedTray = document.getElementById('foldedTray');
+var envelopeHint = document.getElementById('envelopeHint');
+var envelopeActions = document.getElementById('envelopeActions');
+
+var currentEnvelope = null; // {letterId, flapClosed, sealed}
+var sealMode = false;
+var draggingThumbId = null;
+
+function openEnvelope(){
+  currentEnvelope = { letterId:null, flapClosed:false, sealed:false };
+  sealMode = false;
+  renderEnvelope();
+  envelopeModal.classList.remove('hidden');
+}
+
+function unusedFolded(){
+  return foldedLetters.filter(function(f){ return !f.used; });
+}
+
+function renderEnvelope(){
+  envelopeVisual.classList.toggle('flap-closed', currentEnvelope.flapClosed);
+  envelopeVisual.classList.toggle('seal-mode', sealMode);
+  envelopeVisual.innerHTML = '<div class="flap" id="envelopeFlap"></div>';
+
+  if (currentEnvelope.letterId){
+    var ins = document.createElement('div');
+    ins.className = 'inserted-letter';
+    envelopeVisual.appendChild(ins);
+  } else {
+    var dz = document.createElement('div');
+    dz.className = 'drop-zone';
+    dz.id = 'dropZone';
+    dz.textContent = 'Drag a folded letter here';
+    dz.addEventListener('dragover', function(e){ e.preventDefault(); });
+    dz.addEventListener('drop', function(e){
+      e.preventDefault();
+      var id = e.dataTransfer.getData('text/plain');
+      insertFolded(id);
+    });
+    envelopeVisual.appendChild(dz);
+  }
+
+  if (currentEnvelope.sealed){
+    var wax = document.createElement('div');
+    wax.className = 'wax-mark';
+    envelopeVisual.appendChild(wax);
+  }
+
+  envelopeVisual.onclick = function(){
+    if (sealMode && currentEnvelope.flapClosed && !currentEnvelope.sealed){
+      currentEnvelope.sealed = true;
+      sealMode = false;
+      renderEnvelope();
+      showToast('Sealed. Drag it to the pigeon at the window to send.');
+    }
+  };
+
+  // tray
+  foldedTray.innerHTML = '';
+  if (!currentEnvelope.letterId){
+    unusedFolded().forEach(function(f){
+      var el = document.createElement('div');
+      el.className = 'folded-thumb';
+      el.draggable = true;
+      el.textContent = 'letter';
+      el.addEventListener('dragstart', function(e){
+        e.dataTransfer.setData('text/plain', f.id);
+      });
+      foldedTray.appendChild(el);
+    });
+    if (unusedFolded().length === 0){
+      var empty = document.createElement('div');
+      empty.className = 'hint-text';
+      empty.textContent = 'No folded letters yet — write one at the desk first.';
+      foldedTray.appendChild(empty);
+    }
+  }
+
+  // hint + actions
+  envelopeActions.innerHTML = '';
+  if (!currentEnvelope.letterId){
+    envelopeHint.textContent = 'Drag a folded letter into the envelope.';
+  } else if (!currentEnvelope.flapClosed){
+    envelopeHint.textContent = 'Letter inside. Close the flap when ready.';
+    envelopeActions.appendChild(makeBtn('Close flap', 'tool-btn primary', function(){
+      currentEnvelope.flapClosed = true;
+      renderEnvelope();
+    }));
+  } else if (!currentEnvelope.sealed){
+    envelopeHint.textContent = 'Pick up the wax seal, then click the middle of the envelope.';
+    envelopeActions.appendChild(makeBtn('\uD83D\uDD6F Wax seal', 'tool-btn' + (sealMode?' active':''), function(){
+      sealMode = !sealMode;
+      renderEnvelope();
+    }));
+  } else {
+    envelopeHint.textContent = 'Sealed and ready.';
+    envelopeActions.appendChild(makeBtn('Done', 'tool-btn primary', finalizeEnvelope));
+  }
+  envelopeActions.appendChild(makeBtn('Cancel', 'tool-btn ghost', cancelEnvelope));
+}
+
+function makeBtn(label, cls, onClick){
+  var b = document.createElement('button');
+  b.className = cls;
+  b.textContent = label;
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function insertFolded(id){
+  var f = foldedLetters.find(function(x){ return x.id===id; });
+  if (!f || f.used) return;
+  currentEnvelope.letterId = id;
+  var fo = physicsObjects.find(function(o){ return o.kind==='folded' && o.letterId===id; });
+  if (fo) fo.hidden = true;
+  renderEnvelope();
+}
+
+function finalizeEnvelope(){
+  var f = foldedLetters.find(function(x){ return x.id===currentEnvelope.letterId; });
+  if (f) f.used = true;
+  // remove the folded physics body for this letter, if still sitting on the desk
+  var idx = physicsObjects.findIndex(function(o){ return o.kind==='folded' && o.letterId===currentEnvelope.letterId; });
+  if (idx>=0){ removeObject(physicsObjects[idx]); }
+  if (f) spawnSealed(f);
+  envelopeModal.classList.add('hidden');
+  showToast('Sealed envelope set on the desk — drag it to the window to send.');
+}
+
+function cancelEnvelope(){
+  if (currentEnvelope && currentEnvelope.letterId){
+    var fo = physicsObjects.find(function(o){ return o.kind==='folded' && o.letterId===currentEnvelope.letterId; });
+    if (fo) fo.hidden = false;
+  }
+  envelopeModal.classList.add('hidden');
+}
+
+document.getElementById('helpBtn').addEventListener('click', function(){
+  document.getElementById('helpPanel').classList.remove('hidden');
+});
+document.getElementById('helpCloseBtn').addEventListener('click', function(){
+  document.getElementById('helpPanel').classList.add('hidden');
+});
+
+/* =========================================================
+   SEND FLOW
+   ========================================================= */
+function inWindow(pos){
+  return pos.x > WINDOW_A.x-20 && pos.x < WINDOW_A.x+WINDOW_A.w+20 &&
+         pos.y > WINDOW_A.y-20 && pos.y < WINDOW_A.y+WINDOW_A.h+40;
+}
+
+function sendLetter(obj){
+  removeObject(obj);
+  pigeonFlap = 1;
+  setTimeout(function(){ pigeonFlap = 0; }, 900);
+  showSentPreview(obj.frontPNG, obj.backPNG);
+
+  /* NOTE — real send hook point: with a connected email connector and
+     an observed tool call, this is where you'd request the `mcp`
+     capability and call its send/create-draft tool, attaching
+     obj.frontPNG (and obj.backPNG) as the message's image attachment
+     instead of only showing the local preview + manual save below. */
+}
+
+function dataURLToBlob(dataUrl){
+  var parts = dataUrl.split(',');
+  var mimeMatch = parts[0].match(/:(.*?);/);
+  var mime = mimeMatch ? mimeMatch[1] : 'image/png';
+  var binary = atob(parts[1]);
+  var arr = new Uint8Array(binary.length);
+  for (var i=0;i<binary.length;i++){ arr[i] = binary.charCodeAt(i); }
+  return new Blob([arr], { type: mime });
+}
+
+async function savePNG(dataUrl, filename){
+  try{
+    var dl = await window.claude.use('downloads');
+    if (!dl){ showToast('Saving a file isn\u2019t available in this view.'); return; }
+    await dl.save({ filename: filename, data: dataURLToBlob(dataUrl) });
+  } catch(e){
+    if (e && e.code !== 'declined') showToast('Couldn\u2019t save that file here.');
+  }
+}
+
+function showSentPreview(frontPNG, backPNG){
+  var wrap = document.getElementById('toast');
+  wrap.innerHTML = '';
+  var msg = document.createElement('div');
+  msg.innerHTML = 'Sent! (simulated \u2014 no live mail account connected)<br/><span style="opacity:.8;font-size:11px;">handwritten page attached as PNG</span>';
+  wrap.appendChild(msg);
+  var img = document.createElement('img');
+  img.src = frontPNG;
+  img.title = 'Save front page';
+  img.style.cursor = 'pointer';
+  img.addEventListener('click', function(){ savePNG(frontPNG, 'letter-front.png'); });
+  wrap.appendChild(img);
+  if (backPNG){
+    var img2 = document.createElement('img');
+    img2.src = backPNG;
+    img2.title = 'Save back page';
+    img2.style.cursor = 'pointer';
+    img2.addEventListener('click', function(){ savePNG(backPNG, 'letter-back.png'); });
+    wrap.appendChild(img2);
+  }
+  wrap.classList.add('show');
+  clearTimeout(wrap.__hideTimer);
+  wrap.__hideTimer = setTimeout(function(){ wrap.classList.remove('show'); }, 5200);
+}
+
+/* =========================================================
+   TOAST (generic)
+   ========================================================= */
+function showToast(text){
+  var wrap = document.getElementById('toast');
+  wrap.innerHTML = '';
+  var span = document.createElement('span');
+  span.textContent = text;
+  wrap.appendChild(span);
+  wrap.classList.add('show');
+  clearTimeout(wrap.__hideTimer);
+  wrap.__hideTimer = setTimeout(function(){ wrap.classList.remove('show'); }, 2800);
+}
+
+/* =========================================================
+   INPUT: click vs drag detection + hit testing
+   ========================================================= */
+var downPt = null, downTime = 0, downTarget = null;
+var CLICK_DIST = 6, CLICK_TIME = 320;
+
+function worldPos(evt){
+  var rect = canvas.getBoundingClientRect();
+  var cx = (evt.touches ? evt.touches[0].clientX : evt.clientX);
+  var cy = (evt.touches ? evt.touches[0].clientY : evt.clientY);
+  return { x: (cx-rect.left) * (W/rect.width), y: (cy-rect.top) * (H/rect.height) };
+}
+
+function hitTray(pos){
+  for (var i=0;i<trayItems.length;i++){
+    var t = trayItems[i];
+    if (pos.x>=t.x && pos.x<=t.x+t.w && pos.y>=t.y && pos.y<=t.y+t.h) return t;
+  }
+  return null;
+}
+
+function hitPhysicsObject(pos){
+  var visible = physicsObjects.filter(function(o){ return !o.hidden; });
+  var found = Query.point(visible.map(function(o){return o.body;}), pos);
+  if (!found.length) return null;
+  var body = found[found.length-1];
+  for (var i=0;i<visible.length;i++){
+    if (visible[i].body === body) return visible[i];
+  }
+  return null;
+}
+
+canvas.addEventListener('mousedown', function(evt){
+  downPt = worldPos(evt); downTime = performance.now();
+  canvas.classList.add('dragging');
+});
+canvas.addEventListener('touchstart', function(evt){
+  downPt = worldPos(evt); downTime = performance.now();
+}, {passive:true});
+
+window.addEventListener('mouseup', function(evt){
+  canvas.classList.remove('dragging');
+  if (!downPt) return;
+  var up = worldPos(evt);
+  var dist = Math.hypot(up.x-downPt.x, up.y-downPt.y);
+  var dt = performance.now()-downTime;
+  if (dist < CLICK_DIST && dt < CLICK_TIME){
+    var tray = hitTray(up);
+    if (tray){
+      if (tray.type==='page') openCompose();
+      else if (tray.type==='envelope') openEnvelope();
+      else if (tray.type==='seal') showToast('Open an envelope first, then pick up the seal there.');
+      else if (tray.type==='pen') showToast('The pen lives with the writing desk \u2014 click a blank page to start.');
+    } else {
+      var obj = hitPhysicsObject(up);
+      if (obj && obj.kind==='mail') openLetter(obj);
+      else if (obj && obj.kind==='folded') showToast('A folded letter \u2014 open an envelope to send it.');
+    }
+  }
+  downPt = null;
+});
+window.addEventListener('touchend', function(evt){
+  if (!downPt) return;
+  var rect = canvas.getBoundingClientRect();
+  var last = evt.changedTouches[0];
+  var up = { x:(last.clientX-rect.left)*(W/rect.width), y:(last.clientY-rect.top)*(H/rect.height) };
+  var dist = Math.hypot(up.x-downPt.x, up.y-downPt.y);
+  var dt = performance.now()-downTime;
+  if (dist < CLICK_DIST*2 && dt < CLICK_TIME){
+    var tray = hitTray(up);
+    if (tray){
+      if (tray.type==='page') openCompose();
+      else if (tray.type==='envelope') openEnvelope();
+    } else {
+      var obj = hitPhysicsObject(up);
+      if (obj && obj.kind==='mail') openLetter(obj);
+    }
+  }
+  downPt = null;
+});
+
+Events.on(mouseConstraint, 'enddrag', function(e){
+  var body = e.body;
+  if (!body) return;
+  for (var i=0;i<physicsObjects.length;i++){
+    var o = physicsObjects[i];
+    if (o.body === body && o.kind==='sealed'){
+      if (inWindow(body.position)) sendLetter(o);
+      return;
+    }
+  }
+});
+
+/* =========================================================
+   DRAWING
+   ========================================================= */
+function drawSceneBackground(){
+  ctx.fillStyle = '#5b6b63';
+  ctx.fillRect(0,0,W,FLOOR_Y+40);
+  var wallGrad = ctx.createLinearGradient(0,0,0,FLOOR_Y);
+  wallGrad.addColorStop(0,'#63756c'); wallGrad.addColorStop(1,'#526158');
+  ctx.fillStyle = wallGrad;
+  ctx.fillRect(0,0,W,FLOOR_Y);
+  ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+  ctx.lineWidth = 1;
+  for (var x=0; x<W; x+=60){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,FLOOR_Y); ctx.stroke(); }
+
+  var floorGrad = ctx.createLinearGradient(0,FLOOR_Y,0,H);
+  floorGrad.addColorStop(0,'#7a5636'); floorGrad.addColorStop(1,'#5a3f26');
+  ctx.fillStyle = floorGrad;
+  ctx.fillRect(0,FLOOR_Y,W,H-FLOOR_Y);
+  ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+  for (var fx=0; fx<W; fx+=44){ ctx.beginPath(); ctx.moveTo(fx,FLOOR_Y); ctx.lineTo(fx-14,H); ctx.stroke(); }
+  ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+  ctx.beginPath(); ctx.moveTo(0,FLOOR_Y+2); ctx.lineTo(W,FLOOR_Y+2); ctx.stroke();
+}
+
+function drawDoor(){
+  ctx.fillStyle = '#4a2f1d';
+  ctx.fillRect(DOOR.x-14, DOOR.y-10, DOOR.w+28, DOOR.h+16);
+  var doorGrad = ctx.createLinearGradient(DOOR.x,0,DOOR.x+DOOR.w,0);
+  doorGrad.addColorStop(0,'#6b4426'); doorGrad.addColorStop(0.5,'#7a4e2c'); doorGrad.addColorStop(1,'#603c22');
+  ctx.fillStyle = doorGrad;
+  ctx.fillRect(DOOR.x, DOOR.y, DOOR.w, DOOR.h);
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2;
+  ctx.strokeRect(DOOR.x+16, DOOR.y+18, DOOR.w-32, DOOR.h*0.42);
+  ctx.strokeRect(DOOR.x+16, DOOR.y+DOOR.h*0.5, DOOR.w-32, DOOR.h*0.4);
+  ctx.fillStyle = '#c9a24a';
+  ctx.beginPath(); ctx.arc(DOOR.x+DOOR.w-30, DOOR.y+DOOR.h*0.52, 7, 0, Math.PI*2); ctx.fill();
+
+  ctx.fillStyle = '#1c140c';
+  ctx.fillRect(SLOT.x-SLOT.w/2, SLOT.y, SLOT.w, SLOT.h);
+  ctx.fillStyle = '#c9a24a';
+  ctx.fillRect(SLOT.x-SLOT.w/2-4, SLOT.y-4, SLOT.w+8, 4);
+}
+
+function drawMat(){
+  ctx.save();
+  ctx.fillStyle = '#8a5a34';
+  ctx.fillRect(MAT.x, MAT.y, MAT.w, MAT.h);
+  ctx.strokeStyle = '#9e1b32'; ctx.lineWidth = 6;
+  ctx.strokeRect(MAT.x+8, MAT.y+8, MAT.w-16, MAT.h-16);
+  ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1;
+  for (var i=0;i<MAT.w;i+=10){ ctx.beginPath(); ctx.moveTo(MAT.x+i, MAT.y); ctx.lineTo(MAT.x+i, MAT.y+MAT.h); ctx.stroke(); }
+  ctx.restore();
+}
+
+function drawShredder(){
+  ctx.save();
+  ctx.fillStyle = '#26262a';
+  ctx.fillRect(SHREDDER.x, SHREDDER.y+30, SHREDDER.w, SHREDDER.h-30);
+  ctx.fillStyle = '#333338';
+  ctx.fillRect(SHREDDER.x-6, SHREDDER.y, SHREDDER.w+12, 34);
+  ctx.fillStyle = '#0c0c0e';
+  ctx.fillRect(SHREDDER.x+20, SHREDDER.y+10, SHREDDER.w-40, 10);
+  ctx.fillStyle = '#e0a63a';
+  ctx.fillRect(SHREDDER.x+14, SHREDDER.y+SHREDDER.h-26, SHREDDER.w-28, 6);
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.font = '11px Georgia';
+  ctx.fillText('SHREDDER', SHREDDER.x+34, SHREDDER.y+SHREDDER.h-10);
+  ctx.restore();
+}
+
+function drawDesk(){
+  ctx.save();
+  ctx.fillStyle = '#5c3d22';
+  ctx.fillRect(DESK.x-10, DESK.y+30, DESK.w+20, DESK.h-30+30);
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 2;
+  ctx.strokeRect(DESK.x-10, DESK.y+30, DESK.w+20, DESK.h-30+30);
+
+  // blank page stack
+  var pg = trayItems[0];
+  for (var i=0;i<4;i++){
+    ctx.fillStyle = '#fbf8f0';
+    ctx.fillRect(pg.x-i*1.5, pg.y-i*1.5, pg.w, pg.h);
+    ctx.strokeStyle = '#cbbf9d'; ctx.lineWidth=1;
+    ctx.strokeRect(pg.x-i*1.5, pg.y-i*1.5, pg.w, pg.h);
+  }
+  ctx.fillStyle = '#6a5a3a'; ctx.font = '10px Georgia';
+  ctx.fillText('blank pages', pg.x-4, pg.y+pg.h+12);
+
+  // blank envelope stack
+  var ev = trayItems[1];
+  for (var j=0;j<3;j++){
+    ctx.fillStyle = '#d8c9a3';
+    ctx.fillRect(ev.x-j*1.5, ev.y-j*1.5, ev.w, ev.h);
+    ctx.strokeStyle = '#a9926a'; ctx.lineWidth=1;
+    ctx.strokeRect(ev.x-j*1.5, ev.y-j*1.5, ev.w, ev.h);
+  }
+  ctx.fillStyle = '#6a5a3a';
+  ctx.fillText('envelopes', ev.x, ev.y+ev.h+12);
+
+  // wax seal stick
+  var ws = trayItems[2];
+  ctx.fillStyle = '#9e1b32';
+  ctx.fillRect(ws.x, ws.y, ws.w, ws.h);
+  ctx.fillStyle = '#c9a24a';
+  ctx.fillRect(ws.x+6, ws.y-8, ws.w-12, 10);
+
+  // pen
+  var pn = trayItems[3];
+  ctx.save();
+  ctx.translate(pn.x+pn.w/2, pn.y+pn.h/2);
+  ctx.rotate(-0.5);
+  ctx.fillStyle = '#1c1c1c';
+  ctx.fillRect(-pn.w/2, -3, pn.w, 6);
+  ctx.fillStyle = '#c9a24a';
+  ctx.fillRect(pn.w/2-6, -3, 6, 6);
+  ctx.restore();
+
+  ctx.restore();
+}
+
+function drawWindowAndPigeon(){
+  ctx.save();
+  ctx.fillStyle = '#3d4d47';
+  ctx.fillRect(WINDOW_A.x-10, WINDOW_A.y-10, WINDOW_A.w+20, WINDOW_A.h+20);
+  var skyGrad = ctx.createLinearGradient(0, WINDOW_A.y, 0, WINDOW_A.y+WINDOW_A.h);
+  skyGrad.addColorStop(0,'#a9c6cf'); skyGrad.addColorStop(1,'#7fa3ad');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(WINDOW_A.x, WINDOW_A.y, WINDOW_A.w, WINDOW_A.h);
+  ctx.strokeStyle = '#c9a24a'; ctx.lineWidth = 6;
+  ctx.strokeRect(WINDOW_A.x, WINDOW_A.y, WINDOW_A.w, WINDOW_A.h);
+  ctx.beginPath();
+  ctx.moveTo(WINDOW_A.x+WINDOW_A.w/2, WINDOW_A.y);
+  ctx.lineTo(WINDOW_A.x+WINDOW_A.w/2, WINDOW_A.y+WINDOW_A.h);
+  ctx.moveTo(WINDOW_A.x, WINDOW_A.y+WINDOW_A.h/2);
+  ctx.lineTo(WINDOW_A.x+WINDOW_A.w, WINDOW_A.y+WINDOW_A.h/2);
+  ctx.lineWidth = 3; ctx.stroke();
+
+  ctx.fillStyle = '#8a7256';
+  ctx.fillRect(WINDOW_A.x-14, WINDOW_A.y+WINDOW_A.h, WINDOW_A.w+28, 14);
+
+  var flapOffset = pigeonFlap>0 ? Math.sin(performance.now()/40)*4 : 0;
+  ctx.save();
+  ctx.translate(PIGEON.x, PIGEON.y - Math.max(0,flapOffset*3));
+  ctx.fillStyle = '#8b8d92';
+  ctx.beginPath(); ctx.ellipse(0,0,16,11,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-14,-8,7,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#5c6b7a';
+  ctx.beginPath(); ctx.ellipse(10, 0+flapOffset, 10, 5, 0.3, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#c9a24a';
+  ctx.beginPath(); ctx.moveTo(-21,-8); ctx.lineTo(-27,-7); ctx.lineTo(-21,-5); ctx.fill();
+  ctx.restore();
+  ctx.restore();
+}
+
+function drawEnvelopeBody(x, y, angle, w, h, flavor){
+  ctx.save();
+  ctx.translate(x,y); ctx.rotate(angle);
+  var base = flavor==='spam' ? '#e0c25a' : '#e7dcc0';
+  ctx.fillStyle = base;
+  ctx.fillRect(-w/2,-h/2,w,h);
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth=1;
+  ctx.strokeRect(-w/2,-h/2,w,h);
+  ctx.beginPath();
+  ctx.moveTo(-w/2,-h/2); ctx.lineTo(0,2); ctx.lineTo(w/2,-h/2);
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.stroke();
+  if (flavor==='spam'){
+    ctx.fillStyle = '#9e1b32';
+    ctx.save(); ctx.rotate(-0.35);
+    ctx.fillRect(-w*0.32,-4,w*0.6,10);
+    ctx.fillStyle = '#fbf1e6'; ctx.font = '7px Georgia';
+    ctx.fillText('URGENT', -w*0.28, 3);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = '#cbb98a';
+    ctx.fillRect(w/2-16, -h/2+4, 12, 12);
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.strokeRect(w/2-16, -h/2+4, 12, 12);
+  }
+  ctx.restore();
+}
+
+function drawFoldedBody(x,y,angle,w,h){
+  ctx.save();
+  ctx.translate(x,y); ctx.rotate(angle);
+  ctx.fillStyle = '#fbf8f0';
+  ctx.fillRect(-w/2,-h/2,w,h);
+  ctx.strokeStyle = '#cbbf9d'; ctx.lineWidth=1;
+  ctx.strokeRect(-w/2,-h/2,w,h);
+  ctx.beginPath(); ctx.moveTo(-w/2,0); ctx.lineTo(w/2,0);
+  ctx.strokeStyle = '#cbbf9d'; ctx.stroke();
+  ctx.strokeStyle = 'rgba(90,74,40,0.5)';
+  ctx.beginPath(); ctx.moveTo(-w*0.3,-h*0.2); ctx.lineTo(w*0.2,-h*0.2); ctx.stroke();
+  ctx.restore();
+}
+
+function drawSealedBody(x,y,angle,w,h){
+  ctx.save();
+  ctx.translate(x,y); ctx.rotate(angle);
+  ctx.fillStyle = '#d8c9a3';
+  ctx.fillRect(-w/2,-h/2,w,h);
+  ctx.strokeStyle = '#a9926a'; ctx.lineWidth=1;
+  ctx.strokeRect(-w/2,-h/2,w,h);
+  ctx.beginPath();
+  ctx.moveTo(-w/2,-h/2); ctx.lineTo(0,0); ctx.lineTo(w/2,-h/2);
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.stroke();
+  var g = ctx.createRadialGradient(-2,-2,1,0,0,10);
+  g.addColorStop(0,'#b83a48'); g.addColorStop(1,'#6c141f');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0,0,9,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function drawFlyingSprites(now){
+  for (var i=flyingSprites.length-1;i>=0;i--){
+    var s = flyingSprites[i];
+    var t = Math.min(1, (now-s.start)/s.duration);
+    var ease = 1-Math.pow(1-t,2);
+    var x = s.from.x + (s.to.x-s.from.x)*ease;
+    var y = s.from.y + (s.to.y-s.from.y)*ease;
+    var scale = 1-0.5*ease;
+    drawEnvelopeBody(x,y, ease*4, s.w*scale, s.h*scale, 'real');
+    if (t>=1){
+      flyingSprites.splice(i,1);
+      if (s.onDone) s.onDone();
+    }
+  }
+}
+
+function updateAndDrawParticles(){
+  for (var i=shredParticles.length-1;i>=0;i--){
+    var p = shredParticles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.15;
+    p.life -= p.decay;
+    if (p.life<=0){ shredParticles.splice(i,1); continue; }
+    ctx.save();
+    ctx.globalAlpha = Math.max(0,p.life);
+    ctx.translate(p.x,p.y); ctx.rotate(p.rot + p.y*0.02);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+    ctx.restore();
+  }
+}
+
+function draw(){
+  var now = performance.now();
+  ctx.clearRect(0,0,W,H);
+  drawSceneBackground();
+  drawShredder();
+  drawDoor();
+  drawMat();
+  drawDesk();
+  drawWindowAndPigeon();
+
+  for (var i=0;i<physicsObjects.length;i++){
+    var o = physicsObjects[i];
+    if (o.hidden) continue;
+    var p = o.body.position, a = o.body.angle;
+    if (o.kind==='mail') drawEnvelopeBody(p.x,p.y,a,o.w,o.h,o.flavor);
+    else if (o.kind==='folded') drawFoldedBody(p.x,p.y,a,o.w,o.h);
+    else if (o.kind==='sealed') drawSealedBody(p.x,p.y,a,o.w,o.h);
+  }
+
+  drawFlyingSprites(now);
+  updateAndDrawParticles();
+
+  var pc = mailCount();
+  var pileEl = document.getElementById('pileCount');
+  if (pc !== lastMailCount){
+    pileEl.textContent = pc + (pc===1?' letter on the mat':' letters on the mat');
+    lastMailCount = pc;
+  }
+
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+// seed the pile a little on load
+setTimeout(function(){ spawnLetter('spam'); }, 300);
+setTimeout(function(){ spawnLetter('spam'); }, 900);
+setTimeout(function(){ spawnLetter('real'); }, 1500);
+
+})();
+</script>
+</body>
+</html>
