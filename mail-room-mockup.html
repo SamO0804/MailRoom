@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Table</title>
+<style>
+  :root {
+    --wall: #a99476;
+    --wall-dark: #94805f;
+    --floor: #5b4530;
+    --floor-dark: #4a3826;
+    --table: #6b4a30;
+    --table-edge: #4f3520;
+    --table-light: #7d5838;
+    --kraft: #cdb384;
+    --kraft-dark: #b89968;
+    --kraft-inside: #e8dcbf;
+    --paper: #f6efdc;
+    --ink: #3a2f22;
+    --ink-dim: #7a6c55;
+    --wax: #7c2f2f;
+    --wax-dark: #5e2222;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+    overflow: hidden;
+    background: var(--floor);
+  }
+
+  #room {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    min-width: 900px;
+    min-height: 560px;
+    background:
+      linear-gradient(var(--wall) 0%, var(--wall) 38%, var(--floor) 38%, var(--floor-dark) 100%);
+    overflow: hidden;
+  }
+
+  /* subtle wall texture — a picture rail line and skirting */
+  #room::before {
+    content: "";
+    position: absolute;
+    top: 38%;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--wall-dark);
+  }
+
+  #room::after {
+    content: "";
+    position: absolute;
+    top: calc(38% - 1px);
+    left: 0;
+    right: 0;
+    height: 14px;
+    background: linear-gradient(var(--floor), transparent);
+    opacity: 0.5;
+  }
+
+  .window {
+    position: absolute;
+    top: 8%;
+    left: 6%;
+    width: 130px;
+    height: 160px;
+    background: #cdd9d2;
+    border: 10px solid #7d6a4c;
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.25);
+  }
+  .window::before, .window::after {
+    content: "";
+    position: absolute;
+    background: #7d6a4c;
+  }
+  .window::before { top: 50%; left: 0; right: 0; height: 8px; transform: translateY(-50%); }
+  .window::after { left: 50%; top: 0; bottom: 0; width: 8px; transform: translateX(-50%); }
+
+  .lamp {
+    position: absolute;
+    top: 6%;
+    right: 8%;
+    width: 90px;
+    height: 110px;
+  }
+  .lamp .shade {
+    width: 70px;
+    height: 46px;
+    background: #d8c9a3;
+    border-radius: 4px 4px 30px 30px / 4px 4px 50px 50px;
+    margin: 0 auto;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+  }
+  .lamp .pole {
+    width: 4px;
+    height: 60px;
+    background: #4a3826;
+    margin: 0 auto;
+  }
+  .lamp .glow {
+    position: absolute;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 140px;
+    height: 140px;
+    background: radial-gradient(circle, rgba(255,235,180,0.28), transparent 70%);
+    pointer-events: none;
+  }
+
+  /* Table, viewed slightly from above */
+  #table {
+    position: absolute;
+    left: 50%;
+    top: 60%;
+    transform: translate(-50%, -50%);
+    width: min(74vw, 980px);
+    height: min(50vh, 480px);
+    background:
+      repeating-linear-gradient(
+        100deg,
+        var(--table) 0px,
+        var(--table) 34px,
+        var(--table-light) 34px,
+        var(--table-light) 36px
+      );
+    border-radius: 14px;
+    box-shadow:
+      0 30px 60px rgba(0,0,0,0.45),
+      inset 0 0 0 10px var(--table-edge),
+      inset 0 0 60px rgba(0,0,0,0.25);
+  }
+
+  .chair {
+    position: absolute;
+    left: 50%;
+    bottom: 3%;
+    transform: translateX(-50%);
+    width: 160px;
+    height: 46px;
+    background: #4a3826;
+    border-radius: 10px 10px 4px 4px;
+    box-shadow: 0 10px 18px rgba(0,0,0,0.35);
+  }
+
+  /* Letters */
+  .letter {
+    position: absolute;
+    width: 150px;
+    height: 100px;
+    cursor: grab;
+    transition: box-shadow 0.15s ease;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .letter:hover .envelope { box-shadow: 0 10px 20px rgba(0,0,0,0.4), 0 2px 3px rgba(0,0,0,0.2); }
+
+  .letter.dragging {
+    cursor: grabbing;
+    transition: none;
+  }
+
+  .letter.dragging .envelope {
+    box-shadow: 0 26px 40px rgba(0,0,0,0.5), 0 2px 3px rgba(0,0,0,0.25);
+  }
+
+  .letter .envelope {
+    position: absolute;
+    inset: 0;
+    background: var(--kraft);
+    border-radius: 3px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.35), 0 2px 3px rgba(0,0,0,0.2);
+  }
+
+  .letter .envelope::before {
+    /* flap shadow line */
+    content: "";
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: 100%;
+    background:
+      linear-gradient(135deg, transparent 49%, rgba(0,0,0,0.12) 50%, transparent 51%),
+      linear-gradient(45deg, transparent 49%, rgba(0,0,0,0.12) 50%, transparent 51%);
+    background-size: 100% 62%, 100% 62%;
+    background-position: top, top;
+    background-repeat: no-repeat;
+  }
+
+  .letter .seal {
+    position: absolute;
+    left: 50%;
+    top: 46%;
+    transform: translate(-50%, -50%);
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, var(--wax), var(--wax-dark));
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+    z-index: 2;
+  }
+
+  .letter .label {
+    position: absolute;
+    left: 14px;
+    bottom: 12px;
+    right: 14px;
+    font-size: 11px;
+    color: var(--ink-dim);
+    font-style: italic;
+    z-index: 2;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .letter.read .envelope { filter: saturate(0.7) brightness(0.94); }
+  .letter.read .seal { opacity: 0.5; }
+
+  /* Reading overlay */
+  #overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 15, 8, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    z-index: 50;
+  }
+
+  #overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  #sheet {
+    width: min(560px, 86vw);
+    max-height: 80vh;
+    overflow-y: auto;
+    background: var(--paper);
+    background-image:
+      linear-gradient(var(--paper), var(--paper)),
+      repeating-linear-gradient(transparent, transparent 27px, rgba(0,0,0,0.05) 28px);
+    padding: 40px 44px;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+    transform: translateY(20px) scale(0.97);
+    transition: transform 0.25s ease;
+    position: relative;
+  }
+
+  #overlay.open #sheet { transform: translateY(0) scale(1); }
+
+  #sheet .from-line {
+    font-size: 12.5px;
+    color: var(--ink-dim);
+    font-style: italic;
+    margin-bottom: 6px;
+  }
+
+  #sheet h2 {
+    margin: 0 0 20px;
+    font-size: 21px;
+    color: var(--ink);
+    font-weight: normal;
+    border-bottom: 1px solid rgba(0,0,0,0.15);
+    padding-bottom: 14px;
+  }
+
+  #sheet .body {
+    font-size: 15px;
+    line-height: 1.75;
+    color: var(--ink);
+  }
+
+  #sheet .body p { margin: 0 0 16px; }
+
+  #close-btn {
+    position: absolute;
+    top: 14px;
+    right: 18px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    font-family: Georgia, serif;
+    color: var(--ink-dim);
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  #close-btn:hover { color: var(--ink); }
+
+  #room-title {
+    position: absolute;
+    top: 20px;
+    left: 24px;
+    color: #f2e9d5;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    opacity: 0.75;
+    z-index: 5;
+  }
+</style>
+</head>
+<body>
+
+<div id="room">
+  <div id="room-title">the table — 4 letters waiting</div>
+  <div class="window"></div>
+  <div class="lamp">
+    <div class="glow"></div>
+    <div class="shade"></div>
+    <div class="pole"></div>
+  </div>
+
+  <div id="table"></div>
+  <div class="chair"></div>
+
+  <div id="letters"></div>
+</div>
+
+<div id="overlay">
+  <div id="sheet">
+    <button id="close-btn" onclick="closeLetter()">&times;</button>
+    <div class="from-line" id="sheet-from"></div>
+    <h2 id="sheet-subject"></h2>
+    <div class="body" id="sheet-body"></div>
+  </div>
+</div>
+
+<script>
+  const letters = [
+    {
+      id: 1, from: "Oliver, Required Group", subject: "About the Sage migration",
+      body: "Thanks for putting the pricing tiers together. Wanted to check on timing for the Sage migration before the current provider's VPS contract runs out. Could we find thirty minutes this week?",
+      x: "14%", y: "24%", rot: -6
+    },
+    {
+      id: 2, from: "Jack", subject: "The deposit deadline is close",
+      body: "The deposit for Les Arcs is due soon — could you confirm numbers before Friday? We're at eighteen confirmed, and I want to know if the last two are joining before the price changes.",
+      x: "58%", y: "12%", rot: 4
+    },
+    {
+      id: 3, from: "unsigned", subject: "A note about the site",
+      body: "Three pages have started redirecting somewhere they shouldn't, and one has gone quiet under a canonical mismatch. Nothing urgent — but nothing fixes itself either.",
+      x: "36%", y: "48%", rot: 2
+    },
+    {
+      id: 4, from: "Scout HQ", subject: "Final headcount, please",
+      body: "We need the final attendee count for the Guernsey camp before the end of the month, for insurance purposes. Current registered count stands at twenty-three.",
+      x: "68%", y: "56%", rot: -3
+    },
+  ];
+
+  const container = document.getElementById("letters");
+  const room = document.getElementById("room");
+  let topZ = 10;
+
+  letters.forEach(l => {
+    const div = document.createElement("div");
+    div.className = "letter";
+    div.style.setProperty("--rot", l.rot + "deg");
+    div.style.transform = `rotate(${l.rot}deg)`;
+    div.dataset.id = l.id;
+    div.style.zIndex = topZ++;
+    div.innerHTML = `
+      <div class="envelope"></div>
+      <div class="seal"></div>
+      <div class="label">${l.from}</div>
+    `;
+    container.appendChild(div);
+
+    // convert the starting % position into px once the element is laid out
+    const roomRect = room.getBoundingClientRect();
+    const startLeft = (parseFloat(l.x) / 100) * roomRect.width;
+    const startTop = (parseFloat(l.y) / 100) * roomRect.height;
+    div.style.left = startLeft + "px";
+    div.style.top = startTop + "px";
+
+    makeDraggable(div, l);
+  });
+
+  function makeDraggable(el, letterData) {
+    let dragging = false;
+    let moved = false;
+    let startX, startY, origLeft, origTop;
+
+    el.addEventListener("pointerdown", (e) => {
+      dragging = true;
+      moved = false;
+      el.setPointerCapture(e.pointerId);
+      startX = e.clientX;
+      startY = e.clientY;
+      origLeft = parseFloat(el.style.left);
+      origTop = parseFloat(el.style.top);
+      el.classList.add("dragging");
+      el.style.zIndex = ++topZ;
+    });
+
+    el.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+      if (moved) {
+        el.style.left = (origLeft + dx) + "px";
+        el.style.top = (origTop + dy) + "px";
+      }
+    });
+
+    el.addEventListener("pointerup", (e) => {
+      dragging = false;
+      el.classList.remove("dragging");
+      if (!moved) {
+        openLetter(letterData.id, el);
+      }
+    });
+  }
+
+  function openLetter(id, el) {
+    const l = letters.find(x => x.id === id);
+    el.classList.add("read");
+    document.getElementById("sheet-from").textContent = "from " + l.from;
+    document.getElementById("sheet-subject").textContent = l.subject;
+    document.getElementById("sheet-body").innerHTML = `<p>${l.body}</p>`;
+    document.getElementById("overlay").classList.add("open");
+  }
+
+  function closeLetter() {
+    document.getElementById("overlay").classList.remove("open");
+  }
+
+  document.getElementById("overlay").addEventListener("click", (e) => {
+    if (e.target.id === "overlay") closeLetter();
+  });
+</script>
+
+</body>
+</html>
