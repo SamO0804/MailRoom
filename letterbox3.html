@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Letter Box</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;1,500&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --wall-top: #7a6a52;
+    --wall-bot: #5a4c38;
+    --wall-line: #c9a24a;
+    --floor-a: #4a3520;
+    --floor-b: #2c1e11;
+    --mat: #6b3a28;
+    --mat-fringe: #4a2818;
+    --wood: #5e3c22;
+    --wood-light: #7a5230;
+    --wood-dark: #2b1c10;
+    --brass: #c9a24a;
+    --brass-bright: #e6c877;
+    --brass-dark: #8a6d2e;
+    --kraft: #c9ac78;
+    --kraft-shadow: #a68a56;
+    --spam-kraft: #dccfa0;
+    --paper: #f3ead1;
+    --paper-edge: #dccaa0;
+    --ink: #2c2318;
+    --ink-dim: #786c53;
+    --wax: #8f2f2c;
+    --wax-light: #b8503f;
+    --wax-dark: #521c1a;
+    --glow: #f5cb84;
+    --sky: #2f3d52;
+    --sky-light: #6b7f96;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%; margin: 0; overflow: hidden;
+    font-family: "Cormorant Garamond", Georgia, serif;
+    background: var(--floor-b);
+  }
+
+  #room {
+    position: relative;
+    width: 100vw; height: 100vh;
+    min-width: 1040px; min-height: 640px;
+    background:
+      radial-gradient(ellipse 900px 500px at 50% 8%, rgba(255,210,140,0.10), transparent 60%),
+      linear-gradient(180deg, var(--wall-top) 0%, var(--wall-bot) 43%, var(--floor-a) 43%, var(--floor-b) 100%);
+    overflow: hidden;
+  }
+
+  /* subtle overall vignette for depth */
+  #room::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 80% 80% at 50% 45%, transparent 55%, rgba(0,0,0,0.38) 100%);
+    pointer-events: none;
+    z-index: 45;
+  }
+
+  /* wallpaper texture: faint damask-like grain via layered gradients */
+  .wall-texture {
+    position: absolute; top: 0; left: 0; right: 0; height: 43%;
+    background-image:
+      repeating-linear-gradient(115deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 5px),
+      repeating-linear-gradient(25deg, rgba(0,0,0,0.03) 0px, rgba(0,0,0,0.03) 1px, transparent 1px, transparent 7px);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .picture-rail {
+    position: absolute; top: 43%; left: 0; right: 0; height: 6px; z-index: 1;
+    background: linear-gradient(var(--brass-dark), var(--wood-dark));
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35), 0 -1px 0 rgba(255,255,255,0.08);
+  }
+
+  .baseboard {
+    position: absolute; top: 43%; left: 0; right: 0; height: 16px; margin-top: 6px; z-index: 1;
+    background: linear-gradient(var(--wood), var(--wood-dark));
+    box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+  }
+
+  /* floor planks */
+  .floor-planks {
+    position: absolute; top: 49%; left: 0; right: 0; bottom: 0; z-index: 0;
+    background-image: repeating-linear-gradient(90deg, rgba(0,0,0,0.12) 0px, transparent 1px, transparent 130px);
+    pointer-events: none;
+  }
+
+  #room-title {
+    position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
+    font-family: "Playfair Display", serif;
+    font-style: italic;
+    font-weight: 500;
+    color: var(--glow);
+    font-size: 17px; letter-spacing: 0.5px; opacity: 0.85; z-index: 40;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.4);
+  }
+
+  /* ---------------- Door ---------------- */
+  #door {
+    position: absolute;
+    left: 50%; top: 2%; bottom: 57%;
+    transform: translateX(-50%);
+    width: 270px;
+    background: linear-gradient(135deg, var(--wood-light) 0%, var(--wood) 45%, var(--wood-dark) 100%);
+    border: 11px solid var(--wood-dark);
+    border-radius: 8px 8px 0 0;
+    box-shadow:
+      0 26px 50px rgba(0,0,0,0.5),
+      inset 0 0 0 2px rgba(0,0,0,0.2),
+      inset 0 30px 40px rgba(255,220,160,0.06);
+    z-index: 3;
+  }
+  #door::before {
+    /* subtle wood grain streaks */
+    content: "";
+    position: absolute; inset: 0;
+    background-image: repeating-linear-gradient(178deg, rgba(0,0,0,0.06) 0px, transparent 2px, transparent 9px);
+    border-radius: inherit;
+    pointer-events: none;
+  }
+  #door .panel {
+    position: absolute; border: 3px solid rgba(0,0,0,0.3); border-radius: 4px;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.35), inset 0 -1px 0 rgba(255,255,255,0.05);
+  }
+  #door .panel.a { top: 12%; left: 13%; right: 13%; height: 33%; }
+  #door .panel.b { top: 51%; left: 13%; right: 13%; height: 33%; }
+  #door .knob {
+    position: absolute; right: 18px; top: 53%;
+    width: 13px; height: 13px; border-radius: 50%;
+    background: radial-gradient(circle at 32% 28%, var(--brass-bright), var(--brass-dark));
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5), 0 0 6px rgba(230,200,120,0.4);
+  }
+  #door .slot {
+    position: absolute; left: 50%; bottom: 15%; transform: translateX(-50%);
+    width: 126px; height: 16px;
+    background: linear-gradient(var(--brass-dark), #6b5322);
+    border-radius: 4px;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+    z-index: 3;
+  }
+  #door .slot::after {
+    content: ""; position: absolute; inset: 2px;
+    background: #15100a;
+    border-radius: 3px;
+    box-shadow: inset 0 3px 6px rgba(0,0,0,0.8);
+  }
+
+  /* ---------------- Doormat ---------------- */
+  #doormat {
+    position: absolute;
+    left: 50%; bottom: 3%;
+    transform: translateX(-50%);
+    width: 46%; height: 94px;
+    background:
+      repeating-radial-gradient(ellipse at center, var(--mat) 0px, var(--mat) 8px, var(--mat-fringe) 9px, var(--mat-fringe) 10px);
+    border-radius: 10px;
+    box-shadow: 0 14px 30px rgba(0,0,0,0.45), inset 0 0 0 7px var(--mat-fringe), inset 0 2px 10px rgba(0,0,0,0.3);
+    z-index: 1;
+  }
+
+  /* ---------------- Shredder ---------------- */
+  #shredder { position: absolute; left: 4%; bottom: 6%; width: 92px; height: 78px; z-index: 6; }
+  #shredder .slot-top {
+    position: absolute; top: 0; left: 8px; right: 8px; height: 11px;
+    background: linear-gradient(#2a2a2a, #111);
+    border-radius: 2px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.7);
+  }
+  #shredder .body-box {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 52px;
+    background: linear-gradient(155deg, #7a7a7a 0%, #4c4c4c 55%, #333 100%);
+    border-radius: 5px;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.15);
+  }
+  #shredder .body-box::after {
+    content: ""; position: absolute; left: 8px; right: 8px; bottom: 8px; height: 3px;
+    background: rgba(0,0,0,0.3); border-radius: 2px;
+  }
+  #shredder .label-tag {
+    position: absolute; bottom: -20px; left: 0; right: 0; text-align: center;
+    font-family: "Caveat", cursive;
+    font-size: 15px; color: var(--glow); opacity: 0.85; white-space: nowrap;
+  }
+
+  /* ---------------- Window + pigeon ---------------- */
+  .window {
+    position: absolute; top: 5%; right: 6%; width: 124px; height: 148px;
+    background: linear-gradient(180deg, var(--sky-light) 0%, var(--sky) 100%);
+    border: 10px solid var(--wood);
+    border-radius: 3px;
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.35), 0 10px 26px rgba(0,0,0,0.35);
+    z-index: 2;
+    overflow: hidden;
+  }
+  .window::before {
+    content: "";
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 78% 18%, rgba(255,244,214,0.9) 0 4px, transparent 5px),
+      radial-gradient(circle at 30% 65%, rgba(255,255,255,0.5) 0 2px, transparent 3px);
+  }
+  .window::after {
+    content: ""; position: absolute; background: var(--wood);
+  }
+  .window .muntin-v { position: absolute; left: 50%; top: 0; bottom: 0; width: 7px; margin-left: -3.5px; background: var(--wood); box-shadow: 1px 0 2px rgba(0,0,0,0.3); }
+  .window .muntin-h { position: absolute; top: 50%; left: 0; right: 0; height: 7px; margin-top: -3.5px; background: var(--wood); box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+
+  .curtain {
+    position: absolute; top: 5%; width: 34px; height: 168px; z-index: 3;
+    background: linear-gradient(180deg, #6b3a30, #4a2620);
+    border-radius: 0 0 10px 10px;
+    box-shadow: inset -4px 0 8px rgba(0,0,0,0.25), 2px 4px 10px rgba(0,0,0,0.3);
+  }
+  .curtain.left { right: calc(6% + 124px - 6px); }
+  .curtain.right { right: calc(6% - 30px); }
+
+  .sill {
+    position: absolute; top: calc(5% + 148px); right: calc(6% - 14px); width: 148px; height: 14px;
+    background: linear-gradient(var(--wood-light), var(--wood-dark));
+    box-shadow: 0 5px 10px rgba(0,0,0,0.35);
+    z-index: 4;
+  }
+  .pigeon {
+    position: absolute; top: calc(5% + 148px - 30px); right: calc(6% + 20px); width: 44px; height: 34px; z-index: 5;
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.35));
+  }
+  .pigeon .body-shape { position: absolute; bottom: 0; left: 5px; width: 30px; height: 22px; background: linear-gradient(160deg, #9aa5ac, #6b757c); border-radius: 60% 60% 50% 50%; }
+  .pigeon .head { position: absolute; top: 0; left: 21px; width: 16px; height: 14px; background: linear-gradient(160deg, #a6b0b6, #7b858c); border-radius: 50%; }
+  .pigeon .beak { position: absolute; top: 5px; left: 35px; width: 0; height: 0; border-top: 3px solid transparent; border-bottom: 3px solid transparent; border-left: 7px solid var(--brass); }
+  #send-zone {
+    position: absolute; top: calc(5% + 148px + 18px); right: calc(6% - 8px); width: 142px; height: 58px;
+    border: 2px dashed rgba(255,220,160,0.3); border-radius: 8px; z-index: 1; pointer-events: none;
+  }
+  #send-zone.active { border-color: var(--glow); background: rgba(245,203,132,0.1); box-shadow: 0 0 20px rgba(245,203,132,0.3); }
+
+  /* ---------------- Writing station ---------------- */
+  #station {
+    position: absolute; right: 5%; bottom: 8%; width: 230px; height: 170px; z-index: 6;
+  }
+  #station::before {
+    /* warm pool of desk light */
+    content: "";
+    position: absolute; left: -30px; top: -30px; width: 280px; height: 260px;
+    background: radial-gradient(circle, rgba(255,214,140,0.16), transparent 68%);
+    pointer-events: none; z-index: -1;
+  }
+
+  #page-stack { position: absolute; left: 0; top: 0; width: 80px; height: 60px; cursor: pointer; }
+  #page-stack .sheet {
+    position: absolute; inset: 0;
+    background: linear-gradient(155deg, var(--paper) 0%, var(--paper-edge) 100%);
+    border: 1px solid rgba(0,0,0,0.15);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+    border-radius: 2px;
+  }
+  #page-stack .sheet:nth-child(1) { transform: rotate(-4deg) translate(0,5px); }
+  #page-stack .sheet:nth-child(2) { transform: rotate(3deg) translate(2px,2px); }
+  #page-stack .sheet:nth-child(3) { transform: rotate(-1deg); z-index: 2; }
+  #page-stack:hover .sheet:nth-child(3) { box-shadow: 0 6px 14px rgba(0,0,0,0.4); }
+
+  .station-label {
+    position: absolute; bottom: -20px; left: 0; right: 0; text-align: center;
+    font-family: "Caveat", cursive;
+    font-size: 15px; color: var(--glow); opacity: 0.85; white-space: nowrap;
+  }
+
+  #envelope-stack { position: absolute; left: 98px; top: 6px; width: 86px; height: 58px; cursor: pointer; }
+  #envelope-stack .env-blank {
+    position: absolute; inset: 0;
+    background: linear-gradient(155deg, var(--kraft) 0%, var(--kraft-shadow) 100%);
+    border-radius: 3px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+  }
+  #envelope-stack .env-blank::before {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(135deg, transparent 49%, rgba(0,0,0,0.14) 50%, transparent 51%), linear-gradient(45deg, transparent 49%, rgba(0,0,0,0.14) 50%, transparent 51%);
+    background-size: 100% 62%, 100% 62%; background-position: top; background-repeat: no-repeat;
+  }
+
+  #wax-tool { position: absolute; left: 34px; top: 96px; width: 62px; height: 50px; cursor: pointer; }
+  #wax-tool .stick {
+    position: absolute; left: 25px; top: 4px; width: 9px; height: 36px;
+    background: linear-gradient(#b8503f, #6b1f1f);
+    border-radius: 4px;
+    box-shadow: 1px 0 2px rgba(0,0,0,0.3);
+  }
+  #wax-tool .blob {
+    position: absolute; left: 12px; bottom: 0; width: 34px; height: 21px; border-radius: 50%;
+    background: radial-gradient(circle at 32% 26%, var(--wax-light), var(--wax) 55%, var(--wax-dark));
+    box-shadow: 0 3px 6px rgba(0,0,0,0.45);
+  }
+  #wax-tool.armed { filter: drop-shadow(0 0 10px rgba(245,203,132,0.95)); }
+  #wax-tool.armed::after {
+    content: "select the envelope"; position: absolute; bottom: -36px; left: 50%; transform: translateX(-50%);
+    font-family: "Caveat", cursive; font-size: 15px; color: var(--glow); white-space: nowrap; opacity: 0.95;
+  }
+
+  /* ---------------- Incoming letters (physics) ---------------- */
+  .letter {
+    position: absolute; left: 0; top: 0;
+    width: 122px; height: 80px;
+    cursor: grab; touch-action: none; user-select: none;
+    will-change: transform;
+  }
+  .letter.dragging { cursor: grabbing; z-index: 999; }
+  .letter .envelope {
+    position: absolute; inset: 0;
+    background: linear-gradient(160deg, var(--kraft) 0%, var(--kraft-shadow) 100%);
+    border-radius: 3px;
+    box-shadow: 0 7px 16px rgba(0,0,0,0.4), 0 2px 3px rgba(0,0,0,0.25), inset 0 0 0 1px rgba(255,255,255,0.08);
+  }
+  .letter.spam .envelope { background: linear-gradient(160deg, var(--spam-kraft), #c2b384); }
+  .letter .envelope::before {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(135deg, transparent 49%, rgba(0,0,0,0.14) 50%, transparent 51%), linear-gradient(45deg, transparent 49%, rgba(0,0,0,0.14) 50%, transparent 51%);
+    background-size: 100% 62%, 100% 62%; background-position: top; background-repeat: no-repeat;
+  }
+  .letter .seal {
+    position: absolute; left: 50%; top: 44%; transform: translate(-50%,-50%);
+    width: 22px; height: 22px; border-radius: 50%;
+    background: radial-gradient(circle at 32% 26%, var(--wax-light), var(--wax) 55%, var(--wax-dark));
+    box-shadow: 0 3px 5px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.08);
+    z-index: 2;
+  }
+  .letter.spam .seal { display: none; }
+  .letter.spam .advert {
+    position: absolute; left: 8px; top: 8px; font-family: "Playfair Display", serif; font-style: italic;
+    font-size: 9px; color: #7c2f2f; border: 1px solid #7c2f2f; padding: 1px 5px; transform: rotate(-8deg); opacity: 0.75; letter-spacing: 0.5px; z-index: 2;
+  }
+  .letter .label {
+    position: absolute; left: 11px; bottom: 9px; right: 11px;
+    font-family: "Caveat", cursive; font-size: 13px; color: var(--ink-dim); z-index: 2;
+    line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .letter.read .envelope { filter: saturate(0.65) brightness(0.88); }
+  .letter.shredding { transition: transform 0.35s ease, opacity 0.35s ease; }
+
+  /* ---------------- Station objects ---------------- */
+  .station-obj { position: absolute; cursor: grab; touch-action: none; user-select: none; }
+  .station-obj.dragging { cursor: grabbing; z-index: 900; }
+
+  .folded-page {
+    width: 72px; height: 52px;
+    background: linear-gradient(155deg, var(--paper), var(--paper-edge));
+    border: 1px solid rgba(0,0,0,0.2);
+    box-shadow: 0 5px 12px rgba(0,0,0,0.35);
+    border-radius: 2px;
+  }
+  .folded-page::before {
+    content: ""; position: absolute; inset: 4px;
+    border: 1px dashed rgba(0,0,0,0.15);
+  }
+
+  .env-progress {
+    width: 132px; height: 86px;
+    background: linear-gradient(160deg, var(--kraft), var(--kraft-shadow));
+    border-radius: 3px;
+    box-shadow: 0 7px 16px rgba(0,0,0,0.4);
+  }
+  .env-progress .flap {
+    position: absolute; left: 0; right: 0; top: 0; height: 60%;
+    background: linear-gradient(160deg, var(--kraft-shadow), #96794a);
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+    transform-origin: top center;
+    transition: transform 0.3s ease;
+  }
+  .env-progress.open .flap { transform: rotateX(180deg) translateY(-2px); }
+  .env-progress .inner-page {
+    position: absolute; left: 10px; right: 10px; top: 14px; height: 48px;
+    background: linear-gradient(155deg, var(--paper), var(--paper-edge));
+    border-radius: 2px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.25);
+    display: none;
+  }
+  .env-progress.loaded .inner-page { display: block; }
+  .env-progress .addr {
+    position: absolute; left: 13px; bottom: 11px; right: 13px;
+    font-family: "Caveat", cursive; font-size: 15px; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .env-progress .seal-mark {
+    position: absolute; left: 50%; top: 55%; transform: translate(-50%,-50%);
+    width: 28px; height: 28px; border-radius: 50%;
+    background: radial-gradient(circle at 32% 26%, var(--wax-light), var(--wax) 55%, var(--wax-dark));
+    box-shadow: 0 3px 6px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.08);
+    display: none; z-index: 3;
+  }
+  .env-progress.sealed .seal-mark { display: block; }
+  .env-progress.needs-wax { outline: 2px solid var(--glow); outline-offset: 3px; border-radius: 6px; }
+  .env-progress .hint {
+    position: absolute; bottom: -20px; left: 0; right: 0; text-align: center;
+    font-family: "Caveat", cursive; font-size: 14px; color: var(--glow); opacity: 0.9; white-space: nowrap;
+  }
+
+  /* ---------------- Recipient popup ---------------- */
+  #addr-popup {
+    position: fixed; inset: 0; z-index: 150;
+    background: radial-gradient(ellipse at center, rgba(40,28,14,0.55), rgba(8,6,3,0.8));
+    display: none; align-items: center; justify-content: center;
+  }
+  #addr-popup .addr-card {
+    width: min(640px, 92vw);
+    background: linear-gradient(160deg, var(--paper), var(--paper-edge));
+    border-radius: 10px;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.55);
+    padding: 30px 34px;
+  }
+  #addr-popup .addr-panel-title {
+    font-family: "Playfair Display", serif; font-style: italic; font-weight: 500;
+    font-size: 18px; color: var(--ink-dim); margin-bottom: 10px;
+  }
+  #addr-popup canvas {
+    width: 100%; height: 260px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.15);
+    cursor: crosshair; display: block; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+  }
+  #addr-popup .addr-panel-row { display: flex; gap: 12px; margin-top: 14px; }
+  #addr-popup .mini-btn {
+    flex: 1; padding: 11px 14px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.2);
+    background: rgba(255,255,255,0.5); font-family: "Cormorant Garamond", serif; font-size: 16px;
+    color: var(--ink); cursor: pointer;
+  }
+  #addr-popup .mini-btn:hover { background: rgba(255,255,255,0.8); }
+  #addr-popup .mini-btn.primary {
+    background: linear-gradient(180deg, var(--brass-bright), var(--brass-dark));
+    border-color: var(--brass-dark); color: #2a1c0a; font-weight: 600;
+  }
+  #addr-popup #addr-text-input {
+    width: 100%; padding: 14px 16px; margin-top: 8px;
+    font-family: "Cormorant Garamond", serif; font-size: 19px; color: var(--ink);
+    border: 1px solid rgba(0,0,0,0.25); border-radius: 6px; background: #fff;
+  }
+  #addr-popup #addr-text-input:focus { outline: none; border-color: var(--brass-dark); }
+  #addr-popup .addr-analyzing {
+    font-family: "Caveat", cursive; font-size: 20px; color: var(--ink-dim);
+    text-align: center; padding: 40px 0;
+  }
+
+  /* ---------------- Reading overlay ---------------- */
+  #overlay {
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, rgba(40,28,14,0.55), rgba(10,7,4,0.75));
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 100;
+  }
+  #overlay.open { opacity: 1; pointer-events: auto; }
+  #read-sheet {
+    width: min(560px, 86vw); max-height: 82vh; overflow-y: auto;
+    background: linear-gradient(170deg, var(--paper) 0%, var(--paper-edge) 100%);
+    padding: 44px 48px;
+    box-shadow: 0 50px 90px rgba(0,0,0,0.55);
+    position: relative;
+    clip-path: polygon(0.5% 1%, 99.3% 0%, 100% 98.7%, 0.8% 100%);
+    transform: translateY(24px) scale(0.96);
+    transition: transform 0.3s ease;
+  }
+  #overlay.open #read-sheet { transform: translateY(0) scale(1); }
+  #read-sheet .from-line { font-family: "Caveat", cursive; font-size: 17px; color: var(--ink-dim); margin-bottom: 4px; }
+  #read-sheet h2 {
+    margin: 0 0 20px; font-family: "Playfair Display", serif; font-weight: 500;
+    font-size: 24px; color: var(--ink); border-bottom: 1px solid rgba(0,0,0,0.15); padding-bottom: 14px;
+  }
+  #read-sheet .body { font-size: 18px; line-height: 1.7; color: var(--ink); }
+  #read-sheet img.handwritten { max-width: 100%; display: block; margin-top: 10px; }
+  #read-close {
+    position: absolute; top: 12px; right: 16px; background: none; border: none;
+    font-size: 22px; color: var(--ink-dim); cursor: pointer; font-family: "Playfair Display", serif;
+  }
+  #read-close:hover { color: var(--ink); }
+
+  /* ---------------- Writing overlay ---------------- */
+  #write-overlay {
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, rgba(40,28,14,0.6), rgba(8,6,3,0.82));
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 100;
+  }
+  #write-overlay.open { opacity: 1; pointer-events: auto; }
+  #write-wrap { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+  #flip-stage { perspective: 1600px; }
+  #flip-card {
+    width: 420px; height: 560px; position: relative;
+    transform-style: preserve-3d; transition: transform 0.55s ease;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.55);
+  }
+  #flip-card.flipped { transform: rotateY(180deg); }
+  .card-face {
+    position: absolute; inset: 0; backface-visibility: hidden;
+    background: linear-gradient(170deg, var(--paper), var(--paper-edge));
+    border-radius: 3px;
+  }
+  .card-face.back { transform: rotateY(180deg); }
+  .card-face canvas { width: 100%; height: 100%; display: block; cursor: crosshair; border-radius: 3px; }
+
+  #write-toolbar { display: flex; gap: 12px; align-items: center; }
+  .tool-btn {
+    padding: 10px 20px; border-radius: 6px; border: 1px solid rgba(230,200,120,0.35);
+    background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+    color: var(--glow); font-family: "Playfair Display", serif; font-style: italic; font-weight: 500;
+    font-size: 14px; cursor: pointer; transition: background 0.15s ease;
+  }
+  .tool-btn:hover { background: rgba(255,255,255,0.14); }
+  .tool-btn.active {
+    background: linear-gradient(180deg, var(--brass-bright), var(--brass-dark));
+    border-color: var(--brass-dark); color: #2a1c0a; font-style: normal; font-weight: 600;
+  }
+  #write-close {
+    position: absolute; top: 20px; right: 26px; background: none; border: none;
+    font-size: 26px; color: var(--glow); cursor: pointer; font-family: "Playfair Display", serif;
+  }
+
+  /* ---------------- Toast ---------------- */
+  #toast {
+    position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: linear-gradient(160deg, #3a2a1a, #241609);
+    color: var(--glow); padding: 11px 22px; border-radius: 20px;
+    font-family: "Caveat", cursive; font-size: 17px;
+    opacity: 0; transition: all 0.3s ease; pointer-events: none; z-index: 200;
+    box-shadow: 0 12px 26px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(230,200,120,0.15);
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------------- Shred strips (visual only) ---------------- */
+  .shred-strip {
+    position: absolute; width: 6px; height: 36px;
+    background: linear-gradient(var(--paper), var(--paper-edge));
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    border-radius: 1px;
+    opacity: 1;
+    transition: transform 0.6s ease, opacity 0.6s ease;
+    z-index: 7;
+    pointer-events: none;
+  }
+
+  /* ---------------- Pigeon in flight ---------------- */
+  .pigeon.flying .body-shape { animation: flap 0.22s ease-in-out infinite alternate; }
+  @keyframes flap {
+    from { transform: scaleY(0.82) translateY(1px); }
+    to   { transform: scaleY(1.08); }
+  }
+  .dust {
+    position: absolute; width: 3px; height: 3px; border-radius: 50%;
+    background: rgba(255,225,170,0.55);
+    pointer-events: none; z-index: 7;
+    animation: drift 9s ease-in-out infinite;
+  }
+  @keyframes drift {
+    0%   { transform: translate(0, 0); opacity: 0; }
+    10%  { opacity: 0.8; }
+    50%  { transform: translate(14px, -30px); }
+    90%  { opacity: 0.4; }
+    100% { transform: translate(-8px, -60px); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div id="room">
+  <div class="wall-texture"></div>
+  <div class="picture-rail"></div>
+  <div class="baseboard"></div>
+  <div class="floor-planks"></div>
+
+  <div id="room-title">the letter box</div>
+
+  <div id="door">
+    <div class="panel a"></div>
+    <div class="panel b"></div>
+    <div class="knob"></div>
+    <div class="slot"></div>
+  </div>
+
+  <div id="doormat"></div>
+
+  <div id="shredder">
+    <div class="slot-top"></div>
+    <div class="body-box"></div>
+    <div class="label-tag">read mail</div>
+  </div>
+
+  <div class="window">
+    <div class="muntin-v"></div>
+    <div class="muntin-h"></div>
+  </div>
+  <div class="curtain left"></div>
+  <div class="curtain right"></div>
+  <div class="sill"></div>
+  <div class="pigeon"><div class="body-shape"></div><div class="head"></div><div class="beak"></div></div>
+  <div id="send-zone"></div>
+
+  <div id="station">
+    <div class="dust" style="left:20px; top:10px; animation-delay:0s;"></div>
+    <div class="dust" style="left:60px; top:40px; animation-delay:2.4s;"></div>
+    <div class="dust" style="left:110px; top:0px; animation-delay:4.8s;"></div>
+    <div class="dust" style="left:150px; top:30px; animation-delay:1.2s;"></div>
+    <div id="page-stack">
+      <div class="sheet"></div><div class="sheet"></div><div class="sheet"></div>
+      <div class="station-label">write a letter</div>
+    </div>
+    <div id="envelope-stack">
+      <div class="env-blank"></div>
+      <div class="station-label">blank envelope</div>
+    </div>
+    <div id="wax-tool">
+      <div class="stick"></div>
+      <div class="blob"></div>
+      <div class="station-label">wax seal</div>
+    </div>
+  </div>
+
+  <div id="pile"></div>
+  <div id="station-objects"></div>
+
+  <div id="addr-popup"></div>
+</div>
+
+<div id="overlay">
+  <div id="read-sheet">
+    <button id="read-close">&times;</button>
+    <div class="from-line" id="sheet-from"></div>
+    <h2 id="sheet-subject"></h2>
+    <div class="body" id="sheet-body"></div>
+  </div>
+</div>
+
+<div id="write-overlay">
+  <button id="write-close">&times;</button>
+  <div id="write-wrap">
+    <div id="flip-stage">
+      <div id="flip-card">
+        <div class="card-face front"><canvas id="canvas-front" width="420" height="560"></canvas></div>
+        <div class="card-face back"><canvas id="canvas-back" width="420" height="560"></canvas></div>
+      </div>
+    </div>
+    <div id="write-toolbar">
+      <button class="tool-btn active" id="pen-btn">Pen</button>
+      <button class="tool-btn" id="flip-btn">Flip page</button>
+      <button class="tool-btn" id="fold-btn">Fold letter</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  const room = document.getElementById("room");
+  const pile = document.getElementById("pile");
+  const stationObjects = document.getElementById("station-objects");
+  let topZ = 10;
+  let seq = 1;
+
+  function showToast(msg) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove("show"), 3000);
+  }
+
+  function roomRect() { return room.getBoundingClientRect(); }
+
+  // ---------- Physics world (Matter.js) for the incoming letter pile ----------
+  const Engine = Matter.Engine, World = Matter.World, Bodies = Matter.Bodies, Body = Matter.Body, Runner = Matter.Runner;
+  const engine = Engine.create();
+  engine.gravity.y = 1.1;
+
+  let W = roomRect().width, H = roomRect().height;
+
+  const floor = Bodies.rectangle(W / 2, H * 0.95, W * 1.4, 40, { isStatic: true, friction: 0.7 });
+  const leftWall = Bodies.rectangle(-10, H / 2, 20, H * 2, { isStatic: true });
+  const rightWall = Bodies.rectangle(W + 10, H / 2, 20, H * 2, { isStatic: true });
+  World.add(engine.world, [floor, leftWall, rightWall]);
+
+  const runner = Runner.create();
+  Runner.run(runner, engine);
+
+  const letterBodies = {}; // id -> { body, el, w, h }
+
+  function renderPhysics() {
+    for (const id in letterBodies) {
+      const { body, el, w, h } = letterBodies[id];
+      el.style.transform = `translate(${(body.position.x - w / 2).toFixed(1)}px, ${(body.position.y - h / 2).toFixed(1)}px) rotate(${body.angle.toFixed(3)}rad)`;
+    }
+    requestAnimationFrame(renderPhysics);
+  }
+  requestAnimationFrame(renderPhysics);
+
+  // ---------- Incoming mail content ----------
+  const realSenders = [
+    { from: "Oliver, Required Group", subject: "About the Sage migration",
+      body: "Thanks for putting the pricing tiers together. Wanted to check on timing for the Sage migration before the current provider's VPS contract runs out. Could we find thirty minutes this week?" },
+    { from: "Jack", subject: "The deposit deadline is close",
+      body: "The deposit for Les Arcs is due soon — could you confirm numbers before Friday? We're at eighteen confirmed." },
+    { from: "Scout HQ", subject: "Final headcount, please",
+      body: "We need the final attendee count for the Guernsey camp before the end of the month, for insurance purposes." },
+  ];
+
+  const spamSenders = [
+    { from: "Genuine Royal Lottery Co.", subject: "YOU HAVE WON, PROBABLY", body: "A distant relative you have never heard of has left you a fortune. Reply with your bank details to claim." },
+    { from: "Ye Olde Extended Warranty", subject: "Your carriage's warranty is expiring", body: "Act now to extend cover on a carriage you do not recall purchasing." },
+    { from: "Pigeon Post Rewards", subject: "Free frequent-flyer miles!", body: "Congratulations, you've been selected for a complimentary flight. Terms and conditions apply, mostly to us." },
+    { from: "Definitely Not A Scam", subject: "Re: Re: Re: urgent business proposal", body: "A foreign prince requires a small advance to release a very large sum, which is definitely real." },
+    { from: "Miracle Tonic Merchants", subject: "Cures everything, probably", body: "One bottle, one shilling, cures gout, melancholy, and mild curiosity about how it works." },
+  ];
+
+  // Stub for a future real inbox connection — intentionally does nothing yet.
+  // When wired up, this would poll a backend that holds Gmail OAuth credentials
+  // and return an array of { from, subject, body } for genuinely new messages.
+  async function pollRealInbox() {
+    return [];
+  }
+
+  function spawnLetter(content, isSpam) {
+    const id = "l" + (seq++);
+    const w = 120, h = 78;
+    const slotX = W / 2 + (Math.random() * 60 - 30);
+    const slotY = H * 0.36;
+
+    const body = Bodies.rectangle(slotX, slotY, w, h, {
+      restitution: 0.05,
+      friction: 0.6,
+      frictionAir: 0.02,
+      density: 0.001,
+    });
+    Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.15);
+    Body.setVelocity(body, { x: (Math.random() - 0.5) * 1.5, y: 2 });
+    World.add(engine.world, body);
+
+    const el = document.createElement("div");
+    el.className = "letter" + (isSpam ? " spam" : "");
+    el.style.width = w + "px";
+    el.style.height = h + "px";
+    el.style.zIndex = topZ++;
+    el.innerHTML = `
+      <div class="envelope"></div>
+      ${isSpam ? '<div class="advert">ADVERT</div>' : '<div class="seal"></div>'}
+      <div class="label">${content.from}</div>
+    `;
+    pile.appendChild(el);
+
+    letterBodies[id] = { body, el, w, h };
+
+    attachIncomingDrag(id, el, content);
+  }
+
+  function spawnReal() {
+    const c = realSenders[Math.floor(Math.random() * realSenders.length)];
+    spawnLetter(c, false);
+    showToast("post has arrived");
+  }
+  function spawnSpam() {
+    const c = spamSenders[Math.floor(Math.random() * spamSenders.length)];
+    spawnLetter(c, true);
+  }
+
+  setTimeout(spawnReal, 2500);
+  setInterval(spawnReal, 26000 + Math.random() * 10000);
+  setTimeout(spawnSpam, 1200);
+  setInterval(spawnSpam, 7000 + Math.random() * 6000);
+
+  // periodically check the (stubbed) real inbox — currently a no-op
+  setInterval(async () => {
+    const items = await pollRealInbox();
+    items.forEach(c => spawnLetter(c, false));
+  }, 15000);
+
+  function attachIncomingDrag(id, el, content) {
+    let dragging = false, moved = false, startX, startY, offX, offY;
+
+    el.addEventListener("pointerdown", (e) => {
+      dragging = true; moved = false;
+      el.setPointerCapture(e.pointerId);
+      const entry = letterBodies[id];
+      Body.setStatic(entry.body, true);
+      const r = roomRect();
+      startX = e.clientX; startY = e.clientY;
+      offX = (e.clientX - r.left) - entry.body.position.x;
+      offY = (e.clientY - r.top) - entry.body.position.y;
+      el.classList.add("dragging");
+      el.style.zIndex = ++topZ;
+    });
+
+    el.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      const entry = letterBodies[id];
+      if (!entry) return;
+      const dx = e.clientX - startX, dy = e.clientY - startY;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+      if (moved) {
+        const r = roomRect();
+        Body.setPosition(entry.body, { x: (e.clientX - r.left) - offX, y: (e.clientY - r.top) - offY });
+      }
+    });
+
+    el.addEventListener("pointerup", (e) => {
+      dragging = false;
+      const entry = letterBodies[id];
+      if (!entry) return;
+      el.classList.remove("dragging");
+      const dx = e.clientX - startX, dy = e.clientY - startY;
+      Body.setStatic(entry.body, false);
+      if (moved) {
+        Body.setVelocity(entry.body, { x: dx * 0.15, y: dy * 0.15 });
+      } else {
+        openReading(id, content);
+      }
+    });
+  }
+
+  function openReading(id, content) {
+    document.getElementById("sheet-from").textContent = "from " + content.from;
+    document.getElementById("sheet-subject").textContent = content.subject;
+    document.getElementById("sheet-body").innerHTML = `<p>${content.body}</p>`;
+    const overlay = document.getElementById("overlay");
+    overlay.classList.add("open");
+    overlay._currentId = id;
+    const entry = letterBodies[id];
+    if (entry) entry.el.classList.add("read");
+  }
+
+  document.getElementById("read-close").addEventListener("click", closeReading);
+  document.getElementById("overlay").addEventListener("click", (e) => {
+    if (e.target.id === "overlay") closeReading();
+  });
+
+  function closeReading() {
+    const overlay = document.getElementById("overlay");
+    overlay.classList.remove("open");
+    const id = overlay._currentId;
+    overlay._currentId = null;
+    const entry = letterBodies[id];
+    if (!entry) return;
+    // once read, straight to the shredder
+    const shredder = document.getElementById("shredder").getBoundingClientRect();
+    const r = roomRect();
+    const targetX = shredder.left - r.left + 20;
+    const targetY = shredder.top - r.top + 6;
+    // freeze and pull this body out of the physics/render loop immediately,
+    // so our hand-animated shred motion isn't fought over by renderPhysics
+    const startPos = { x: entry.body.position.x, y: entry.body.position.y };
+    const angle = entry.body.angle;
+    World.remove(engine.world, entry.body);
+    delete letterBodies[id];
+
+    entry.el.classList.add("shredding");
+    entry.el.style.transformOrigin = "center";
+    const startTime = performance.now();
+    const duration = 380;
+    function step(now) {
+      const t = Math.min(1, (now - startTime) / duration);
+      const x = startPos.x + (targetX - startPos.x) * t;
+      const y = startPos.y + (targetY - startPos.y) * t;
+      // squash vertically as it nears the slot, like paper being fed in
+      const squash = 1 - 0.6 * t;
+      entry.el.style.transform = `translate(${x - entry.w / 2}px, ${y - entry.h / 2}px) rotate(${angle}rad) scaleX(${1 - t}) scaleY(${squash})`;
+      if (t < 1) requestAnimationFrame(step);
+      else {
+        entry.el.remove();
+        spawnShredStrips(targetX, targetY);
+      }
+    }
+    requestAnimationFrame(step);
+  }
+
+  function spawnShredStrips(x, y) {
+    const shredder = document.getElementById("shredder").getBoundingClientRect();
+    const r = roomRect();
+    const outY = shredder.top - r.top + 44; // just below the slot, above the body box
+    const stripCount = 6;
+    for (let i = 0; i < stripCount; i++) {
+      const strip = document.createElement("div");
+      strip.className = "shred-strip";
+      const startX = x - 16 + i * 6;
+      strip.style.left = startX + "px";
+      strip.style.top = outY + "px";
+      room.appendChild(strip);
+      const dx = (Math.random() * 18 - 9);
+      const rot = (Math.random() * 40 - 20);
+      requestAnimationFrame(() => {
+        strip.style.transform = `translate(${dx}px, 40px) rotate(${rot}deg)`;
+        strip.style.opacity = "0";
+      });
+      setTimeout(() => strip.remove(), 650);
+    }
+  }
+
+  // ---------- Writing a letter ----------
+  const writeOverlay = document.getElementById("write-overlay");
+  const flipCard = document.getElementById("flip-card");
+  const canvasFront = document.getElementById("canvas-front");
+  const canvasBack = document.getElementById("canvas-back");
+  const penBtn = document.getElementById("pen-btn");
+  const flipBtn = document.getElementById("flip-btn");
+  const foldBtn = document.getElementById("fold-btn");
+  let penActive = true;
+  let showingBack = false;
+
+  [canvasFront, canvasBack].forEach(cv => {
+    const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#f6efdc";
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.strokeStyle = "#2f271b";
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    let drawing = false, lastPt = null;
+
+    function scalePoint(e) {
+      const rect = cv.getBoundingClientRect();
+      return {
+        x: (e.clientX - rect.left) * (cv.width / rect.width),
+        y: (e.clientY - rect.top) * (cv.height / rect.height),
+      };
+    }
+
+    cv.addEventListener("pointerdown", (e) => {
+      if (!penActive) return;
+      drawing = true;
+      lastPt = scalePoint(e);
+      cv.setPointerCapture(e.pointerId);
+    });
+    cv.addEventListener("pointermove", (e) => {
+      if (!drawing || !penActive) return;
+      const p = scalePoint(e);
+      ctx.beginPath();
+      ctx.moveTo(lastPt.x, lastPt.y);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      lastPt = p;
+    });
+    cv.addEventListener("pointerup", () => { drawing = false; });
+    cv.addEventListener("pointerleave", () => { drawing = false; });
+  });
+
+  document.getElementById("page-stack").addEventListener("click", () => {
+    writeOverlay.classList.add("open");
+  });
+
+  document.getElementById("write-close").addEventListener("click", () => {
+    writeOverlay.classList.remove("open");
+  });
+
+  penBtn.addEventListener("click", () => {
+    penActive = true;
+    penBtn.classList.add("active");
+  });
+
+  flipBtn.addEventListener("click", () => {
+    showingBack = !showingBack;
+    flipCard.classList.toggle("flipped", showingBack);
+  });
+
+  foldBtn.addEventListener("click", () => {
+    const frontImage = canvasFront.toDataURL("image/png");
+    const backImage = canvasBack.toDataURL("image/png");
+    writeOverlay.classList.remove("open");
+    createFoldedPage(frontImage, backImage);
+    // reset canvases for next time
+    [canvasFront, canvasBack].forEach(cv => {
+      const ctx = cv.getContext("2d");
+      ctx.fillStyle = "#f6efdc";
+      ctx.fillRect(0, 0, cv.width, cv.height);
+    });
+    flipCard.classList.remove("flipped");
+    showingBack = false;
+    showToast("letter folded — put it in an envelope");
+  });
+
+  // ---------- Station objects: folded pages, envelopes-in-progress ----------
+  function stationSpawnPoint() {
+    const st = document.getElementById("page-stack").getBoundingClientRect();
+    const r = roomRect();
+    return { x: st.left - r.left, y: st.top - r.top + 80 };
+  }
+
+  function createFoldedPage(frontImage, backImage) {
+    const pos = stationSpawnPoint();
+    const el = document.createElement("div");
+    el.className = "station-obj folded-page";
+    el.style.left = pos.x + "px";
+    el.style.top = pos.y + "px";
+    el.style.zIndex = ++topZ;
+    const data = { kind: "folded-page", frontImage, backImage };
+    el.dataset.kind = "folded-page";
+    stationObjects.appendChild(el);
+    makeStationDraggable(el, data);
+  }
+
+  document.getElementById("envelope-stack").addEventListener("click", () => {
+    const st = document.getElementById("envelope-stack").getBoundingClientRect();
+    const r = roomRect();
+    const el = document.createElement("div");
+    el.className = "station-obj env-progress open";
+    el.style.left = (st.left - r.left) + "px";
+    el.style.top = (st.top - r.top + 90) + "px";
+    el.style.zIndex = ++topZ;
+    el.innerHTML = `
+      <div class="flap"></div>
+      <div class="inner-page"></div>
+      <div class="addr"></div>
+      <div class="seal-mark"></div>
+      <div class="hint">drag a folded letter inside</div>
+    `;
+    const data = { kind: "envelope", state: "open-empty", recipientText: null, payload: null };
+    stationObjects.appendChild(el);
+    makeStationDraggable(el, data);
+  });
+
+  document.getElementById("wax-tool").addEventListener("click", () => {
+    const tool = document.getElementById("wax-tool");
+    tool.classList.toggle("armed");
+    if (tool.classList.contains("armed")) showToast("wax seal selected — click a closed, addressed envelope");
+  });
+
+  function waxArmed() { return document.getElementById("wax-tool").classList.contains("armed"); }
+  function disarmWax() { document.getElementById("wax-tool").classList.remove("armed"); }
+
+  // Distance/reliability isn't a fixed list any more — since the address is
+  // handwritten and then converted to real text, we derive a stand-in
+  // "distance" from that text so the same address behaves consistently.
+  // A real build would replace this with actual IMAP/SMTP delivery.
+  function hashString(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return h;
+  }
+  function distanceForAddress(text) {
+    const h = hashString(text.trim().toLowerCase());
+    return {
+      delayMs: 3000 + (h % 20000),
+      lossChance: ((h >> 3) % 25) / 100,
+    };
+  }
+
+  function overlapsRect(elA, rectB) {
+    const a = elA.getBoundingClientRect();
+    return !(a.right < rectB.left || a.left > rectB.right || a.bottom < rectB.top || a.top > rectB.bottom);
+  }
+
+  function makeStationDraggable(el, data) {
+    let dragging = false, moved = false, startX, startY, origLeft, origTop;
+
+    el.addEventListener("pointerdown", (e) => {
+      if (data.kind === "envelope" && data.state === "sending") return;
+      dragging = true; moved = false;
+      el.setPointerCapture(e.pointerId);
+      startX = e.clientX; startY = e.clientY;
+      origLeft = parseFloat(el.style.left) || 0;
+      origTop = parseFloat(el.style.top) || 0;
+      el.classList.add("dragging");
+      el.style.zIndex = ++topZ;
+    });
+
+    el.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX, dy = e.clientY - startY;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+      if (moved) {
+        el.style.left = (origLeft + dx) + "px";
+        el.style.top = (origTop + dy) + "px";
+        if (data.kind === "envelope" && data.state === "sealed") checkSendZone(el);
+      }
+    });
+
+    el.addEventListener("pointerup", (e) => {
+      dragging = false;
+      el.classList.remove("dragging");
+      document.getElementById("send-zone").classList.remove("active");
+
+      if (moved) {
+        if (data.kind === "folded-page") {
+          handleFoldedDrop(el, data);
+        } else if (data.kind === "envelope" && data.state === "sealed") {
+          if (overlapsRect(el, document.getElementById("send-zone").getBoundingClientRect())) {
+            sendEnvelope(el, data);
+          }
+        }
+        return;
+      }
+
+      // plain click (no drag)
+      if (data.kind === "envelope") {
+        handleEnvelopeClick(el, data);
+      }
+    });
+  }
+
+  function handleFoldedDrop(pageEl, pageData) {
+    // find an open, empty envelope under the drop point
+    const target = [...stationObjects.querySelectorAll(".env-progress.open")]
+      .find(env => env !== pageEl && overlapsRect(pageEl, env.getBoundingClientRect()));
+    if (!target) return;
+    const envData = target._data;
+    if (!envData || envData.state !== "open-empty") return;
+
+    envData.state = "open-loaded";
+    envData.payload = pageData;
+    target.classList.add("loaded");
+    target.querySelector(".hint").textContent = "click to close the flap";
+    pageEl.remove();
+  }
+
+  function handleEnvelopeClick(el, data) {
+    if (data.state === "open-loaded") {
+      data.state = "closed-unaddressed";
+      el.classList.remove("open");
+      el.classList.remove("loaded");
+      el.querySelector(".hint").textContent = "click to address it";
+      return;
+    }
+    if (data.state === "closed-unaddressed") {
+      openAddressPopup(el, data);
+      return;
+    }
+    if (data.state === "closed-addressed-unsealed") {
+      if (waxArmed()) {
+        data.state = "sealed";
+        el.classList.remove("needs-wax");
+        el.classList.add("sealed");
+        el.querySelector(".hint").textContent = "carry it to the window";
+        disarmWax();
+        showToast("sealed with wax");
+      } else {
+        el.classList.add("needs-wax");
+        setTimeout(() => el.classList.remove("needs-wax"), 700);
+        showToast("select the wax seal first");
+      }
+      return;
+    }
+  }
+
+  function openAddressPopup(el, data) {
+    const popup = document.getElementById("addr-popup");
+
+    popup.innerHTML = `
+      <div class="addr-card">
+        <div class="addr-panel-title">write the address by hand — there's plenty of room</div>
+        <canvas id="addr-canvas" width="960" height="380"></canvas>
+        <div class="addr-panel-row">
+          <button type="button" class="mini-btn" id="addr-clear">clear</button>
+          <button type="button" class="mini-btn primary" id="addr-convert">convert to text →</button>
+        </div>
+      </div>
+    `;
+    popup.style.display = "flex";
+
+    const card = popup.querySelector(".addr-card");
+    const canvas = popup.querySelector("#addr-canvas");
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#f3ead1";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "#2c2318";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    let hasInk = false;
+    attachPenToCanvas(canvas, ctx, () => { hasInk = true; });
+
+    popup.querySelector("#addr-clear").onclick = () => {
+      ctx.fillStyle = "#f3ead1";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      hasInk = false;
+    };
+
+    popup.querySelector("#addr-convert").onclick = () => {
+      if (!hasInk) { showToast("write the address first"); return; }
+      // Stand-in for real handwriting recognition: in a full build this canvas
+      // would be sent to an OCR/handwriting model. There's no such model
+      // running client-side here, so we show a brief "reading" beat and then
+      // hand it to the person to confirm as plain text — since a wrong
+      // address can't actually be sent anywhere, a human check makes sense
+      // even with real OCR in place.
+      card.innerHTML = `<div class="addr-analyzing">reading the handwriting…</div>`;
+      setTimeout(() => {
+        card.innerHTML = `
+          <div class="addr-panel-title">couldn't read that reliably — please confirm it as text</div>
+          <input type="text" id="addr-text-input" placeholder="Type the address you wrote, e.g. name@example.com" />
+          <div class="addr-panel-row">
+            <button type="button" class="mini-btn" id="addr-back">back to writing</button>
+            <button type="button" class="mini-btn primary" id="addr-use">address it</button>
+          </div>
+        `;
+        const input = card.querySelector("#addr-text-input");
+        input.focus();
+
+        function confirmAddress() {
+          const text = input.value.trim();
+          if (!text) { input.focus(); return; }
+          data.recipientText = text;
+          data.state = "closed-addressed-unsealed";
+          el.querySelector(".addr").textContent = "to " + text;
+          el.querySelector(".hint").textContent = "select the wax seal, then click here";
+          popup.style.display = "none";
+        }
+
+        card.querySelector("#addr-use").onclick = confirmAddress;
+        input.addEventListener("keydown", (e) => { if (e.key === "Enter") confirmAddress(); });
+        card.querySelector("#addr-back").onclick = () => openAddressPopup(el, data);
+      }, 700);
+    };
+  }
+
+  document.getElementById("addr-popup").addEventListener("click", (e) => {
+    if (e.target.id === "addr-popup") e.currentTarget.style.display = "none";
+  });
+
+  function attachPenToCanvas(cv, ctx, onDraw) {
+    let drawing = false, lastPt = null;
+    function scalePoint(e) {
+      const rect = cv.getBoundingClientRect();
+      return {
+        x: (e.clientX - rect.left) * (cv.width / rect.width),
+        y: (e.clientY - rect.top) * (cv.height / rect.height),
+
+      };
+    }
+    cv.addEventListener("pointerdown", (e) => {
+      drawing = true;
+      lastPt = scalePoint(e);
+      cv.setPointerCapture(e.pointerId);
+      if (onDraw) onDraw();
+    });
+    cv.addEventListener("pointermove", (e) => {
+      if (!drawing) return;
+      const p = scalePoint(e);
+      ctx.beginPath();
+      ctx.moveTo(lastPt.x, lastPt.y);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      lastPt = p;
+    });
+    cv.addEventListener("pointerup", () => { drawing = false; });
+    cv.addEventListener("pointerleave", () => { drawing = false; });
+  }
+
+
+  document.addEventListener("click", (e) => {
+    const popup = document.getElementById("addr-popup");
+    if (popup.style.display === "block" && !popup.contains(e.target) && !e.target.closest(".env-progress")) {
+      popup.style.display = "none";
+    }
+  });
+
+  // attach _data reference and pointer handlers created above rely on closures;
+  // patch: store data on element for handleFoldedDrop lookup
+  const origMakeStationDraggable = makeStationDraggable;
+  makeStationDraggable = function (el, data) {
+    el._data = data;
+    origMakeStationDraggable(el, data);
+  };
+
+  function checkSendZone(el) {
+    const zone = document.getElementById("send-zone");
+    if (overlapsRect(el, zone.getBoundingClientRect())) zone.classList.add("active");
+    else zone.classList.remove("active");
+  }
+
+  function sendEnvelope(el, data) {
+    data.state = "sending";
+    el.classList.add("sending");
+    el.querySelector(".hint").textContent = "the pigeon takes it...";
+    const { delayMs, lossChance } = distanceForAddress(data.recipientText);
+    const pigeon = document.querySelector(".pigeon");
+    const r = roomRect();
+    const pigeonRect = pigeon.getBoundingClientRect();
+    const pigeonX = pigeonRect.left - r.left;
+    const pigeonY = pigeonRect.top - r.top;
+
+    // envelope hops onto the pigeon
+    el.style.transition = "left .4s ease, top .4s ease, transform .4s ease";
+    el.style.left = (pigeonX - 44) + "px";
+    el.style.top = (pigeonY + 6) + "px";
+    el.style.transform = "scale(0.42)";
+
+    setTimeout(() => {
+      // pigeon launches off-screen carrying the letter
+      pigeon.classList.add("flying");
+      pigeon.style.transition = "transform 1.1s cubic-bezier(.4,0,.2,1)";
+      pigeon.style.transform = "translate(260px, -300px) rotate(-16deg) scale(0.6)";
+      el.style.transition = "transform .9s ease, opacity .9s ease";
+      el.style.transform = "translate(210px, -280px) scale(0.3)";
+      el.style.opacity = "0";
+      setTimeout(() => el.remove(), 900);
+
+      setTimeout(() => {
+        // pigeon has been away for the trip's distance — resolve and return
+        const lost = Math.random() < lossChance;
+        if (lost) {
+          showToast(`a letter to ${data.recipientText} never arrived`);
+        } else {
+          showToast(`delivered to ${data.recipientText}`);
+          // This is the point where a real build would hand data.recipientText
+          // (a plain, confirmed address) and the folded page's PNGs to an
+          // actual SMTP/IMAP-backed send — deferred for now.
+        }
+        returnPigeon(pigeon);
+      }, delayMs);
+    }, 420);
+  }
+
+  function returnPigeon(pigeon) {
+    pigeon.style.transition = "none";
+    pigeon.style.transform = "translate(260px, -300px) rotate(-16deg) scale(0.6)";
+    void pigeon.offsetWidth; // force reflow so the next transition actually animates
+    pigeon.style.transition = "transform 1s cubic-bezier(.4,0,.2,1)";
+    pigeon.style.transform = "translate(0,0) rotate(0deg) scale(1)";
+    setTimeout(() => pigeon.classList.remove("flying"), 1000);
+  }
+
+})();
+</script>
+
+</body>
+</html>
