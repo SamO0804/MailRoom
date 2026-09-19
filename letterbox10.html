@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Correspondence Desk</title>
+<style>
+:root{
+  --wall:#59675f; --wall-dark:#3f4b46;
+  --floor:#67472f; --floor-dark:#38271b;
+  --paper:#f4ecd9; --paper-line:#c5b68f;
+  --ink:#2b241a;
+  --wax:#9c2435; --wax-dark:#651522;
+  --brass:#c5a15a; --brass-dark:#7d5c2b;
+  --panel-bg:#f0e4cb; --panel-border:#aa9161;
+  --btn-bg:#f0e4cb; --btn-text:#2b241a; --btn-border:#aa9161;
+  --overlay-bg:rgba(18,15,11,.72);
+  --page-bg:#fbf7eb;
+  --body-bg:#1a1714;
+  --toast-bg:rgba(28,22,17,.95); --toast-text:#f6edd9;
+  --muted:#6f6554;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:
+    radial-gradient(circle at 50% 0%, #453d36 0%, #241f1b 45%, #151210 100%);
+  color:var(--btn-text); min-height:100vh; display:flex; align-items:center; justify-content:center;
+  padding:20px; font-family:Arial, Helvetica, sans-serif;
+}
+#stage{
+  position:relative; width:100%; max-width:1240px; aspect-ratio:1200 / 720; overflow:hidden;
+  border:1px solid rgba(236,220,186,.2); border-radius:12px;
+  box-shadow:0 28px 70px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.06);
+  touch-action:none; background:#4f5b55;
+}
+#scene{width:100%;height:100%;display:block;cursor:grab}
+#scene.dragging{cursor:grabbing}
+/* ---------- HUD ---------- */
+#hud{position:absolute;top:18px;left:18px;right:18px;display:flex;align-items:flex-start;justify-content:space-between;pointer-events:none}
+#hud>*{pointer-events:auto}
+.hud-left{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.hud-title{
+  padding:8px 13px; border-radius:8px; color:#f8eed9; letter-spacing:.08em; text-transform:uppercase;
+  font-size:11px; font-weight:bold; background:rgba(30,25,20,.72); border:1px solid rgba(234,214,174,.18);
+  box-shadow:0 6px 18px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.04);
+  backdrop-filter:blur(8px);
+}
+.pile-count{
+  background:rgba(248,238,216,.86); color:#3b2d20; padding:8px 12px; border-radius:8px; font-size:12px;
+  border:1px solid rgba(111,85,49,.25); box-shadow:0 5px 14px rgba(0,0,0,.2); backdrop-filter:blur(7px);
+}
+button{font-family:inherit}
+.wax-btn,.tool-btn,.stamp-btn,.help-btn{transition:transform .14s ease, box-shadow .14s ease, filter .14s ease}
+.wax-btn{
+  background:linear-gradient(#b33147,#8d2134); color:#fff8ef; border:1px solid #641523; padding:9px 15px;
+  border-radius:8px; font-size:13px; cursor:pointer; box-shadow:0 4px 0 #5e1823, 0 7px 16px rgba(0,0,0,.22);
+}
+.wax-btn:hover,.tool-btn:hover,.stamp-btn:hover{transform:translateY(-1px);filter:brightness(1.04)}
+.wax-btn:active{transform:translateY(2px);box-shadow:0 2px 0 #5e1823}
+.help-btn{background:rgba(30,25,20,.72);color:#f8eed9;border:1px solid rgba(255,255,255,.25);width:33px;height:33px;border-radius:50%;cursor:pointer;font-size:14px;box-shadow:0 5px 16px rgba(0,0,0,.2)}
+/* overlays */
+.overlay,.help-panel{position:absolute;inset:0;background:var(--overlay-bg);display:flex;align-items:center;justify-content:center;padding:24px;z-index:20;backdrop-filter:blur(3px);opacity:1;transition:opacity .28s ease}
+.overlay.hidden,.help-panel.hidden{opacity:0;pointer-events:none}
+#envelopeModal{background:rgba(18,15,11,.14);backdrop-filter:none;pointer-events:none;justify-content:flex-start;padding-left:4%}
+#envelopeModal.hidden{pointer-events:none}
+#envelopeModal .envelope-actions button{pointer-events:auto}
+.paper-sheet,.help-card{
+  background:linear-gradient(135deg,#fcf8ee,#eee3cf); color:var(--ink); position:relative;
+  border:1px solid rgba(105,77,40,.3); box-shadow:0 26px 60px rgba(0,0,0,.52), 0 2px 0 rgba(255,255,255,.55) inset;
+}
+.paper-sheet{width:min(560px,100%);max-height:90%;overflow:auto;padding:30px 32px 22px;border-radius:10px;transform:rotate(-.25deg)}
+.paper-sheet:before,.help-card:before{content:"";position:absolute;inset:9px;border:1px solid rgba(172,144,100,.23);border-radius:6px;pointer-events:none}
+.letterhead{display:flex;flex-direction:column;gap:3px;border-bottom:1px solid var(--paper-line);padding-bottom:12px;margin-bottom:15px}
+.letterhead .from{font-weight:bold;font-size:16px;letter-spacing:.01em}.letterhead .subject{font-style:italic;color:var(--muted);font-size:13px}
+.letter-body{font-size:15px;line-height:1.72;white-space:pre-wrap;min-height:120px}
+.stamp-btn{margin-top:22px;background:#efe2ca;color:var(--btn-text);border:1px dashed var(--btn-border);padding:9px 14px;border-radius:7px;cursor:pointer;font-size:13px}
+/* compose */
+.compose-wrap{display:flex;flex-direction:column;align-items:center;gap:12px;max-height:95%}
+.compose-toolbar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:760px}
+.tool-btn{background:rgba(244,234,214,.97);color:#2b241a;border:1px solid #ab9263;padding:9px 14px;border-radius:8px;cursor:pointer;font-size:13px;box-shadow:0 5px 14px rgba(0,0,0,.18)}
+.tool-btn.active{background:linear-gradient(#af3144,#8d2033);color:#fff5eb;border-color:#641523}.tool-btn.primary{background:linear-gradient(#46684f,#31503a);color:#fff8ef;border-color:#243d2a}.tool-btn.ghost{background:rgba(30,25,20,.45);color:#f5ecd9;border-color:rgba(255,255,255,.35)}
+.page-flipper{position:relative;width:min(390px,82vw);height:min(500px,60vh);transition:transform .15s ease;filter:drop-shadow(0 18px 30px rgba(0,0,0,.46))}
+.page-flipper:after{content:"";position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 50px rgba(65,47,27,.06)}
+.page-flipper.flip-anim{transform:scaleX(.04)}
+.page-flipper canvas{position:absolute;inset:0;width:100%;height:100%;background:var(--page-bg);border:1px solid #d2c4a4;border-radius:5px;touch-action:none}
+.side-label{color:#f2ead8;font-size:12px;letter-spacing:.04em;opacity:.9;text-shadow:0 2px 5px rgba(0,0,0,.35)}
+/* envelope modal */
+.envelope-wrap{display:flex;flex-direction:column;align-items:center;gap:16px;max-height:95%;overflow:auto;padding:8px;pointer-events:none}
+.envelope-visual{width:min(390px,82vw);height:235px;position:relative;background:#d9c79a;border:1px solid #a28756;border-radius:7px;box-shadow:0 22px 44px rgba(0,0,0,.52), inset 0 1px 0 rgba(255,255,255,.4);pointer-events:auto;overflow:hidden}
+.envelope-visual:before{content:"";position:absolute;inset:8px;border:1px solid rgba(92,66,29,.18);border-radius:4px;pointer-events:none}
+/* Stacking, back to front: open flap (0) → letter (1) → fixed pocket
+   folds (2) → drop-zone hint (3) → address line (4) → closed flap (5) →
+   wax seal (6). The key trick: left/right/bottom exactly tile every part
+   of the rectangle that the top fold doesn't, so putting them ABOVE the
+   letter crops its sides and bottom away, leaving it visible only through
+   the top flap's triangular opening — like it's genuinely tucked into a
+   pocket rather than laid flat on top of the whole envelope face. */
+.env-pocket{position:absolute;inset:0;z-index:2}
+.env-fold{position:absolute;inset:0}
+.env-fold.left{clip-path:polygon(0% 0%,0% 100%,50% 50%);background:linear-gradient(100deg,#c3ac7d,#d6c091)}
+.env-fold.right{clip-path:polygon(100% 0%,100% 100%,50% 50%);background:linear-gradient(260deg,#c3ac7d,#d6c091)}
+.env-fold.bottom{clip-path:polygon(0% 100%,100% 100%,50% 50%);background:linear-gradient(0deg,#ab9265,#c7b183)}
+/* the top flap is the only moving part, so it gets its own perspective
+   wrapper and its own z-index that flips with .flap-closed: behind the
+   letter while open (folded back out of the way, letter peeks through),
+   in front of everything once closed (physically covering it). */
+.env-flap-wrap{position:absolute;inset:0;perspective:700px;z-index:0}
+.envelope-visual.flap-closed .env-flap-wrap{z-index:5}
+.env-fold.top{clip-path:polygon(0% 0%,100% 0%,50% 50%);background:linear-gradient(190deg,#e2cd9c,#c5ae7a);transform-origin:top center;transition:transform .3s ease;filter:drop-shadow(0 3px 4px rgba(0,0,0,.22))}
+.envelope-visual:not(.flap-closed) .env-fold.top{transform:rotateX(-42deg) translateY(-3px)}
+.envelope-visual.flap-closed .env-fold.top{transform:rotateX(0deg)}
+/* the drop-zone is just an instructional overlay (no letter placed yet),
+   so it stays above the pocket folds — otherwise its dashed hint box
+   would be mostly hidden under them before there's anything to tuck in */
+.drop-zone{position:absolute;left:18px;right:18px;top:72px;bottom:18px;border:2px dashed #8e7549;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#6a5635;font-size:12px;text-align:center;padding:8px;background:rgba(255,250,235,.9);z-index:3}
+.drop-zone.filled{border-style:solid}.drop-zone.hidden-zone{display:none}
+/* the letter itself sits just above the open flap and below everything
+   else — the fixed pocket folds now crop its sides/bottom, and the top
+   flap covers what's left once closed, so it reads as genuinely tucked
+   inside rather than pasted on top regardless of state. A lighter,
+   tighter shadow reinforces "resting in a slot" over "hovering card". */
+.inserted-letter{position:absolute;left:50%;top:30px;transform:translateX(-50%) rotate(-1deg);width:66%;height:46px;background-color:#fff;background-size:cover;background-position:center 20%;background-repeat:no-repeat;border:2px solid #7a6640;box-shadow:0 4px 8px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.7);border-radius:2px;overflow:hidden;z-index:1}
+.inserted-letter::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(120,98,56,.04));pointer-events:none}
+.wax-mark{position:absolute;left:50%;top:75%;transform:translate(-50%,-50%) rotate(-4deg);width:55px;height:55px;border-radius:48% 52% 50% 47%;background:radial-gradient(circle at 32% 25%,#e15a68 0%,#b52d42 26%,#922235 58%,#651522 100%);box-shadow:0 7px 12px rgba(0,0,0,.34),inset 2px 3px 4px rgba(255,255,255,.22),inset -3px -4px 5px rgba(70,8,18,.34);filter:drop-shadow(0 1px 1px rgba(255,255,255,.16));z-index:6}
+.wax-mark::before{content:"";position:absolute;inset:7px;border-radius:46% 54% 51% 48%;border:2px solid rgba(78,8,18,.34);box-shadow:inset 0 1px 2px rgba(255,255,255,.18),0 1px 0 rgba(255,255,255,.1)}
+.wax-mark::after{content:"CD";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,222,220,.68);font:bold 13px Georgia,serif;letter-spacing:-1px;text-shadow:1px 1px 1px rgba(90,10,20,.55),-1px -1px 1px rgba(255,180,185,.18);transform:translateY(1px)}
+.envelope-visual.seal-mode{cursor:crosshair;outline:2px dashed var(--wax);outline-offset:4px}
+.tray-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;max-width:460px}.folded-thumb{width:70px;height:48px;background:#fbf8f0;border:1px solid #cbbf9d;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#6a5a3a;cursor:grab;position:relative;box-shadow:0 5px 12px rgba(0,0,0,.22)}.folded-thumb::before{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:#cbbf9d}.envelope-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;pointer-events:auto}.hint-text{color:#f2ead8;font-size:12px;text-align:center;max-width:400px;opacity:.88;text-shadow:0 2px 5px rgba(0,0,0,.35);pointer-events:none}
+/* address modal (on-screen keyboard) */
+.address-card{background:linear-gradient(135deg,#fcf8ee,#eee3cf);color:var(--ink);position:relative;border:1px solid rgba(105,77,40,.3);box-shadow:0 26px 60px rgba(0,0,0,.52), 0 2px 0 rgba(255,255,255,.55) inset;width:min(600px,100%);padding:26px 28px;border-radius:10px}
+.address-card .addr-title{font-style:italic;color:var(--muted);font-size:13px;margin-bottom:12px}
+.addr-display{width:100%;min-height:24px;padding:11px 14px;margin-bottom:14px;background:#fff;border:1px solid rgba(105,77,40,.35);border-radius:6px;font-size:18px;letter-spacing:.4px;white-space:pre;overflow-x:auto}
+.kb-row{display:flex;gap:6px;justify-content:center;margin-bottom:6px}
+.key-btn{flex:1;min-width:26px;padding:9px 0;border-radius:5px;border:1px solid var(--btn-border);background:linear-gradient(#fbf4e2,#e9dcb8);box-shadow:0 2px 0 rgba(0,0,0,.18);font-weight:bold;font-size:14px;color:var(--btn-text);cursor:pointer}
+.key-btn:hover{filter:brightness(1.05)}
+.key-btn:active{box-shadow:none;transform:translateY(2px)}
+.key-space{flex:6}
+.key-back{flex:2;background:linear-gradient(#e8c9a0,#cf9f68)}
+.addr-actions{display:flex;gap:10px;margin-top:14px;justify-content:center}
+/* toast */
+.toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%) translateY(12px);background:var(--toast-bg);color:var(--toast-text);padding:12px 16px;border-radius:9px;font-size:13px;box-shadow:0 14px 28px rgba(0,0,0,.4);opacity:0;transition:opacity .25s ease,transform .25s ease;z-index:30;max-width:min(520px,90%);display:flex;gap:12px;align-items:center;border:1px solid rgba(245,228,190,.13);backdrop-filter:blur(9px)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.toast img{width:44px;height:58px;object-fit:cover;border:1px solid #6a5a3a;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+/* help */
+.help-card{max-width:470px;width:100%;padding:26px 28px;border-radius:10px;font-size:14px;line-height:1.6}.help-card h2{margin:0 0 10px;font-size:19px}.help-card ul{padding-left:18px;margin:0 0 16px}.help-card li{margin-bottom:7px}.help-card button{background:linear-gradient(#ad3043,#872033);color:#fff5ec;border:none;padding:9px 17px;border-radius:7px;cursor:pointer;box-shadow:0 4px 0 #5f1522}
+@media(max-width:700px){body{padding:8px}.hud-title{display:none}.pile-count{font-size:11px}.paper-sheet{padding:25px 22px}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="scene" width="1200" height="720" aria-label="A hallway with a front door letterbox, a shredder, and a writing desk"></canvas>
+
+  <div id="hud">
+    <div class="hud-left">
+      <div class="hud-title">The Correspondence Desk</div>
+      <button class="wax-btn" id="checkMailBtn">Check Mail</button>
+      <div class="pile-count" id="pileCount">0 letters on the mat</div>
+      <div class="pile-count" id="serverIndicator" style="opacity:0.6; font-size:0.85em;"></div>
+    </div>
+    <button class="help-btn" id="helpBtn" title="How to play">?</button>
+  </div>
+
+  <div class="help-panel hidden" id="helpPanel">
+    <div class="help-card">
+      <h2>The Correspondence Desk</h2>
+      <ul>
+        <li><strong>Drag</strong> any letter to shuffle the pile out of your way. When writing a reply, drag the folded letter from the desk into the open envelope.</li>
+        <li><strong>Click</strong> (without dragging) a letter to open and read it — closing it sends it straight to the shredder. No re-reading.</li>
+        <li><strong>Check Mail</strong> pulls in a couple of real-flavoured letters on demand; the rest arrives on its own every so often, mostly real with the occasional bit of spam.</li>
+        <li>Click a <strong>blank page</strong> on the desk to write by hand — select the pen, draw, flip for the back, then fold.</li>
+        <li>Click a <strong>blank envelope</strong> to open it, drag a folded letter inside, close the flap, <strong>address it</strong> using the on-screen keyboard, then pick up the <strong>wax seal</strong> and click the envelope's centre to seal it.</li>
+        <li>Drag a sealed envelope to the <strong>pigeon at the window</strong> to send it.</li>
+      </ul>
+      <button id="helpCloseBtn">Got it</button>
+    </div>
+  </div>
+
+  <!-- READ MODAL -->
+  <div class="overlay hidden" id="readModal">
+    <div class="paper-sheet">
+      <div class="letterhead">
+        <span class="from" id="readFrom"></span>
+        <span class="subject" id="readSubject"></span>
+      </div>
+      <div class="letter-body" id="readBody"></div>
+      <button class="stamp-btn" id="readCloseBtn">✕ Close &amp; Shred</button>
+    </div>
+  </div>
+
+  <!-- COMPOSE MODAL -->
+  <div class="overlay hidden" id="composeModal">
+    <div class="compose-wrap">
+      <div class="compose-toolbar">
+        <button class="tool-btn" id="penToolBtn">🖊 Pen</button>
+        <button class="tool-btn" id="flipBtn">⟲ Flip page</button>
+        <button class="tool-btn primary" id="foldBtn">Fold &amp; set aside</button>
+        <button class="tool-btn ghost" id="composeCancelBtn">Cancel</button>
+      </div>
+      <div class="page-flipper" id="pageFlipper">
+        <canvas id="pageCanvasFront" width="520" height="680"></canvas>
+        <canvas id="pageCanvasBack" width="520" height="680" style="display:none"></canvas>
+      </div>
+      <div class="side-label" id="sideLabel">Front — select the pen to write</div>
+    </div>
+  </div>
+
+  <!-- ENVELOPE MODAL -->
+  <div class="overlay hidden" id="envelopeModal">
+    <div class="envelope-wrap">
+      <div class="envelope-visual" id="envelopeVisual"></div>
+      <div class="tray-row" id="foldedTray" style="display:none"></div>
+      <div class="hint-text" id="envelopeHint">Drag a folded letter from the room into the envelope.</div>
+      <div class="envelope-actions" id="envelopeActions"></div>
+    </div>
+  </div>
+
+  <!-- ADDRESS MODAL (on-screen keyboard, alphabetical order) -->
+  <div class="overlay hidden" id="addressModal">
+    <div class="address-card" id="addressCard">
+      <div class="addr-title">Address the envelope — use the keys below (shuffled every time), your own keyboard won't work here</div>
+      <div class="addr-display" id="addrDisplay">&nbsp;</div>
+      <div id="onscreenKeyboard"></div>
+      <div class="addr-actions">
+        <button class="tool-btn ghost" id="addrClearBtn">Clear</button>
+        <button class="tool-btn primary" id="addrUseBtn">Address it</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script>
+(function(){
+'use strict';
+
+/* =========================================================
+   BACKEND CONNECTION
+   Points at a locally-running mail server (see backend-server/
+   in the project). Defaults to localhost, but can be overridden
+   per-device without editing this file — see getServerUrl()
+   below and the note at the end of this file for details.
+   ========================================================= */
+function getServerUrl(){
+  var params = new URLSearchParams(window.location.search);
+  var fromQuery = params.get('server');
+  if (fromQuery){
+    // allow shorthand like "192.168.1.42:3000" as well as a full URL
+    return /^https?:\/\//.test(fromQuery) ? fromQuery : 'http://' + fromQuery;
+  }
+  return 'http://localhost:3000';
+}
+var SERVER_URL = getServerUrl();
+var lastSeenIncoming = 0; // timestamp cursor for incoming-mail polling
+var serverIndicatorEl = document.getElementById('serverIndicator');
+if (serverIndicatorEl) serverIndicatorEl.textContent = 'server: ' + SERVER_URL;
+
+/* =========================================================
+   CONTENT POOLS
+   Swap pickRandom(REAL_CONTENT) below for a real fetch once
+   an email connector is wired in — see NOTE near fetchMail().
+   ========================================================= */
+var SPAM_CONTENT = [
+  { from:"Prize Committee (Intl.)", subject:"YOU HAVE BEEN SELECTED", body:"Congratulations! Our records indicate you are eligible for an unclaimed reward. Reply within 24 hours with your full details to avoid forfeiture. This is not a scam." },
+  { from:"Definitely A Real Bank", subject:"Urgent: verify your account", body:"We noticed unusual activity. Click nowhere, just open this letter fully and post your card back to us in the enclosed (imaginary) envelope." },
+  { from:"Cedric's Extended Warranty Co.", subject:"Your vehicle's warranty is expiring", body:"Dear Vehicle Owner, this is your final, final, truly final notice. Act today. Or tomorrow. We will write again regardless." },
+  { from:"Lucky Star Sweepstakes", subject:"A cheque for you is enclosed*", body:"*Cheque not actually enclosed. Please send a small processing fee to receive the cheque that is not enclosed." },
+  { from:"Royal Heir Support Desk", subject:"Distant relative has left you a fortune", body:"A relative you have never heard of has named you sole heir to an estate you cannot verify. Kindly respond with your bank routing number." },
+  { from:"The Discount Gutter Guys", subject:"WE NOTICED YOUR GUTTERS", body:"From the street. While driving past. At speed. Call now for a free estimate you did not ask for." },
+  { from:"Timeshare Freedom Alliance", subject:"Get out of your timeshare TODAY", body:"You may already qualify for early release from an agreement we don't actually know the terms of. Certain restrictions apply, mostly to you." },
+  { from:"Miracle Mattress Depot", subject:"This weekend only (also last weekend)", body:"Every mattress in the store is on sale, as it has been continuously since the store opened." },
+  { from:"Neighbourhood Watch Newsletter", subject:"Someone's bin was in the wrong place", body:"A full report on bin placement irregularities from the last fortnight, cross-referenced by street." },
+  { from:"Cruise Line You've Never Booked", subject:"Your complimentary cruise awaits", body:"Two nights, one port, several hidden fees. Just attend a 90 minute presentation first." }
+];
+
+var REAL_CONTENT = [
+  { from:"Council Tax Office", subject:"Annual statement enclosed", body:"Please find enclosed your annual statement. No action is required unless you disagree, in which case quite a lot of action is required." },
+  { from:"Aunt Rosalind", subject:"Just a little note", body:"Thinking of you — do come and visit when you have a moment. Bring biscuits, we're out." },
+  { from:"Riverside Book Club", subject:"Next month's pick", body:"We've chosen something nobody will finish in time again. First Tuesday, usual place." },
+  { from:"Harbour View Clinic", subject:"Appointment reminder", body:"This confirms your upcoming appointment. Please arrive ten minutes early to fill out a form you filled out last time too." },
+  { from:"Local Allotment Society", subject:"Committee minutes", body:"Discussed: the fence, the tap, and, once again, the fence." },
+  { from:"Former Housemate", subject:"Found this while unpacking", body:"Pretty sure this is yours — let me know where to send the rest of it." },
+  { from:"Energy Provider", subject:"Your latest reading", body:"Thank you for your recent meter submission. Your next statement will follow as usual." },
+  { from:"Old University Friend", subject:"Long overdue catch up", body:"It's been far too long. Are you around next month? No pressure, just say the word." }
+];
+
+function pickRandom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function uid(){ return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+
+/* =========================================================
+   SCENE LAYOUT (logical 1200x720 space)
+   ========================================================= */
+var W = 1200, H = 720;
+var FLOOR_Y = 560;
+var DOOR = { x:470, y:80, w:260, h:480 };
+var SLOT = { x: DOOR.x + DOOR.w/2, y: DOOR.y + DOOR.h - 130, w:110, h:18 };
+var MAT  = { x:430, y:566, w:340, h:82 };
+var SHREDDER = { x:60, y:420, w:180, h:170 };
+var DESK = { x:955, y:470, w:205, h:120 };
+var WINDOW_A = { x:945, y:120, w:225, h:260 };
+var PIGEON = { x: WINDOW_A.x + 168, y: WINDOW_A.y + 200 };
+
+var WALL_LEFT = 372, WALL_RIGHT = 828;
+var MAX_PILE = 50;
+
+/* =========================================================
+   MATTER SETUP
+   ========================================================= */
+var Engine = Matter.Engine, World = Matter.World, Bodies = Matter.Bodies,
+    Body = Matter.Body, Mouse = Matter.Mouse, MouseConstraint = Matter.MouseConstraint,
+    Events = Matter.Events, Query = Matter.Query, Runner = Matter.Runner;
+
+var engine = Engine.create();
+engine.gravity.y = 1;
+var world = engine.world;
+
+var ground = Bodies.rectangle(600, 760, 1100, 80, { isStatic:true });
+var leftWall = Bodies.rectangle(WALL_LEFT-10, 420, 20, 900, { isStatic:true });
+var rightWall = Bodies.rectangle(WALL_RIGHT+10, 420, 20, 900, { isStatic:true });
+World.add(world, [ground, leftWall, rightWall]);
+
+var canvas = document.getElementById('scene');
+var ctx = canvas.getContext('2d');
+
+var mouse = Mouse.create(canvas);
+function syncMouseScale(){
+  var rect = canvas.getBoundingClientRect();
+  Mouse.setScale(mouse, { x: W / rect.width, y: H / rect.height });
+  Mouse.setOffset(mouse, { x: 0, y: 0 });
+}
+syncMouseScale();
+window.addEventListener('resize', syncMouseScale);
+
+var mouseConstraint = MouseConstraint.create(engine, {
+  mouse: mouse,
+  constraint: { stiffness: 0.15, damping: 0.15, render: { visible:false } }
+});
+World.add(world, mouseConstraint);
+
+var runner = Runner.create();
+Runner.run(runner, engine);
+
+// Hard containment: cap any physics object's speed each tick so a hard
+// flick, or anything unexpected, can never send a letter flying out past
+// the walls/floor — combined with the existing static boundaries, this
+// guarantees everything stays inside the visible scene.
+var ceiling = Bodies.rectangle(600, -30, 1400, 40, { isStatic:true });
+World.add(world, [ceiling]);
+Events.on(engine, 'afterUpdate', function(){
+  var maxSpeed = 22;
+  for (var i=0;i<physicsObjects.length;i++){
+    var b = physicsObjects[i].body;
+    var vx=b.velocity.x, vy=b.velocity.y;
+    var speed = Math.hypot(vx,vy);
+    if (speed>maxSpeed){
+      var k = maxSpeed/speed;
+      Body.setVelocity(b, {x:vx*k, y:vy*k});
+    }
+  }
+});
+
+// NOTE: these two helpers are no longer used for real sends — actual
+// delay/loss now comes from the backend server (see sendLetter() and
+// pollSendStatus() below). Left in place only in case you want a local
+// fallback if the server is unreachable; not currently called.
+function hashString(s){
+  var h = 0;
+  for (var i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+function distanceForAddress(text){
+  var h = hashString(text.trim().toLowerCase());
+  return {
+    delayMs: 3000 + (h % 20000),
+    lossChance: ((h >> 3) % 25) / 100
+  };
+}
+
+/* =========================================================
+   STATE
+   ========================================================= */
+var physicsObjects = []; // {body, kind:'mail'|'folded'|'sealed', ...meta}
+var foldedLetters = [];  // {id, frontPNG, backPNG, used}
+var flyingSprites = [];  // shred animation
+var shredParticles = [];
+var pigeonFlap = 0; // >0 while pigeon animates
+var spamTimer = null;
+var lastMailCount = 0;
+
+var trayItems = [
+  { id:'blankPage',    x: DESK.x+14,  y: DESK.y-6,  w:62, h:82, type:'page' },
+  { id:'blankEnvelope',x: DESK.x+96,  y: DESK.y+18, w:70, h:48, type:'envelope' },
+  { id:'waxSeal',      x: DESK.x+18,  y: DESK.y+92, w:26, h:26, type:'seal' },
+  { id:'pen',          x: DESK.x+150, y: DESK.y+92, w:40, h:10, type:'pen' }
+];
+
+/* =========================================================
+   LETTER / OBJECT SPAWNING
+   ========================================================= */
+function mailCount(){
+  var n = 0;
+  for (var i=0;i<physicsObjects.length;i++){ if (physicsObjects[i].kind==='mail') n++; }
+  return n;
+}
+
+function spawnLetter(flavor, content){
+  if (mailCount() >= MAX_PILE) return false;
+  var w = 72 + Math.random()*8, h = 44 + Math.random()*6;
+  var x = SLOT.x + (Math.random()*40-20);
+  var y = SLOT.y - 4;
+  var body = Bodies.rectangle(x, y, w, h, {
+    restitution: 0.12,
+    friction: 0.75,
+    frictionAir: 0.02,
+    density: 0.0018,
+    angle: (Math.random()*0.5-0.25),
+    chamfer: { radius: 3 }
+  });
+  Body.setAngularVelocity(body, (Math.random()*0.12-0.06));
+  Body.setVelocity(body, { x:(Math.random()*1.2-0.6), y: 1.5 });
+  World.add(world, body);
+  // content passed in (e.g. a real message fetched from the server) wins;
+  // otherwise fall back to the decorative local pools
+  var c = content || (flavor==='spam' ? pickRandom(SPAM_CONTENT) : pickRandom(REAL_CONTENT));
+  var obj = { body:body, kind:'mail', id:uid(), flavor:flavor, w:w, h:h,
+    from: c.from, subject: c.subject, body_text: c.body };
+  physicsObjects.push(obj);
+  return true;
+}
+
+// Automatic post: polls the backend server on an interval for any real
+// mail that's arrived since we last checked, and spawns it into the pile.
+// A rare bit of decorative spam is still sprinkled in locally for flavor —
+// that part isn't real and doesn't touch the server.
+function scheduleAutoMail(){
+  var delay = 27000 + Math.random()*15000; // ~27–42s between checks
+  spamTimer = setTimeout(function(){
+    pollServerMail();
+    if (Math.random() < 0.1) spawnLetter('spam');
+    scheduleAutoMail();
+  }, delay);
+}
+scheduleAutoMail();
+
+// Polls the backend for real incoming mail and spawns each new message
+// into the pile. Safe to call repeatedly — it only spawns messages newer
+// than the last one it already saw.
+function pollServerMail(){
+  return fetch(SERVER_URL + '/api/letters/incoming?since=' + lastSeenIncoming)
+    .then(function(res){
+      if (!res.ok) throw new Error('server returned ' + res.status);
+      return res.json();
+    })
+    .then(function(letters){
+      letters.forEach(function(l, i){
+        if (l.createdAt > lastSeenIncoming) lastSeenIncoming = l.createdAt;
+        setTimeout(function(){
+          spawnLetter('real', { from: l.from, subject: l.subject, body: l.body });
+        }, i*220);
+      });
+      return letters.length;
+    })
+    .catch(function(err){
+      console.warn('could not reach mail server:', err.message);
+      showToast('Could not reach the mail server — is it running?');
+      return 0;
+    });
+}
+
+/* Manual "Check Mail" button — does an immediate poll of the real server
+   rather than waiting for the next automatic interval. */
+function fetchMail(){
+  pollServerMail().then(function(added){
+    if (added === 0){
+      showToast('No new post.');
+    }
+    if (mailCount() >= MAX_PILE){
+      showToast('No room on the mat for more — clear some letters first.');
+    }
+  });
+}
+document.getElementById('checkMailBtn').addEventListener('click', fetchMail);
+
+function spawnFolded(letterId){
+  var x = DESK.x + 20 + Math.random()*30, y = DESK.y - 40;
+  var body = Bodies.rectangle(x, y, 54, 36, {
+    restitution:0.1, friction:0.8, frictionAir:0.02, density:0.002,
+    angle:(Math.random()*0.3-0.15), chamfer:{radius:2}
+  });
+  World.add(world, body);
+  physicsObjects.push({ body:body, kind:'folded', id:uid(), letterId:letterId, w:54, h:36 });
+}
+
+function spawnSealed(folded, recipientText){
+  var x = DESK.x + 30, y = DESK.y - 40;
+  var body = Bodies.rectangle(x, y, 74, 50, {
+    restitution:0.1, friction:0.8, frictionAir:0.02, density:0.0022,
+    angle:(Math.random()*0.2-0.1), chamfer:{radius:3}
+  });
+  World.add(world, body);
+  physicsObjects.push({ body:body, kind:'sealed', id:uid(), frontPNG:folded.frontPNG, backPNG:folded.backPNG, w:74, h:50, recipientText:recipientText || 'someone' });
+}
+
+function removeObject(obj){
+  World.remove(world, obj.body);
+  var idx = physicsObjects.indexOf(obj);
+  if (idx>=0) physicsObjects.splice(idx,1);
+}
+
+/* =========================================================
+   READ / SHRED FLOW
+   ========================================================= */
+var readModal = document.getElementById('readModal');
+var readFrom = document.getElementById('readFrom');
+var readSubject = document.getElementById('readSubject');
+var readBody = document.getElementById('readBody');
+var readCloseBtn = document.getElementById('readCloseBtn');
+var activeReadObj = null;
+
+function openLetter(obj){
+  activeReadObj = obj;
+  readFrom.textContent = obj.from;
+  readSubject.textContent = obj.subject;
+  readBody.textContent = obj.body_text;
+  var sourceRect = canvasObjectRect(obj.body.position.x, obj.body.position.y, obj.w, obj.h);
+  obj.hidden = true; // the envelope "becomes" the open letter
+  readModal.classList.remove('hidden');
+  growFromRect(readModal.querySelector('.paper-sheet'), sourceRect);
+}
+
+readCloseBtn.addEventListener('click', function(){
+  if (!activeReadObj) { readModal.classList.add('hidden'); return; }
+  var obj = activeReadObj;
+  activeReadObj = null;
+  var pos = { x: obj.body.position.x, y: obj.body.position.y };
+  var w = obj.w, h = obj.h;
+  var sheet = readModal.querySelector('.paper-sheet');
+  var targetRect = canvasObjectRect(pos.x, pos.y, w, h);
+  // shrink the open letter back down onto the exact envelope it came from,
+  // then reveal it and let it carry on to the shredder — one continuous
+  // motion rather than two disconnected animations
+  shrinkToRect(sheet, targetRect, 320, function(){
+    readModal.classList.add('hidden');
+    removeObject(obj);
+    flyToShredder(pos, w, h);
+  });
+});
+
+function flyToShredder(fromPos, w, h){
+  var target = { x: SHREDDER.x + SHREDDER.w/2, y: SHREDDER.y + 22 };
+  flyingSprites.push({
+    from: fromPos, to: target, start: performance.now(), duration: 320, w:w, h:h,
+    onDone: function(){ spawnShredParticles(target); }
+  });
+}
+
+function spawnShredParticles(at){
+  var colors = ['#efe6d2','#e3d6b3','#f2ead8'];
+  for (var i=0;i<7;i++){
+    shredParticles.push({
+      x: at.x + (Math.random()*20-10), y: at.y + 30,
+      vx: (Math.random()*2-1), vy: 1 + Math.random()*1.5,
+      w: 5+Math.random()*3, h: 14+Math.random()*8,
+      life: 1, decay: 0.012 + Math.random()*0.01,
+      color: colors[i%colors.length],
+      rot: Math.random()*Math.PI
+    });
+  }
+}
+
+/* =========================================================
+   COMPOSE (WRITE) FLOW
+   ========================================================= */
+var composeModal = document.getElementById('composeModal');
+var pageFront = document.getElementById('pageCanvasFront');
+var pageBack = document.getElementById('pageCanvasBack');
+var pageFlipper = document.getElementById('pageFlipper');
+var sideLabel = document.getElementById('sideLabel');
+var penToolBtn = document.getElementById('penToolBtn');
+var flipBtn = document.getElementById('flipBtn');
+var foldBtn = document.getElementById('foldBtn');
+var composeCancelBtn = document.getElementById('composeCancelBtn');
+
+var ctxFront = pageFront.getContext('2d');
+var ctxBack = pageBack.getContext('2d');
+var penSelected = false;
+var facingFront = true;
+var drawing = false;
+var lastPt = null;
+
+function clearPage(c){
+  c.fillStyle = '#fbf8f0'; c.fillRect(0,0,pageFront.width,pageFront.height);
+  // ruled lines, like real writing paper, as a guide for the pen
+  c.strokeStyle = 'rgba(90,70,40,.16)'; c.lineWidth = 1;
+  for (var y=64; y<pageFront.height-20; y+=38){
+    c.beginPath(); c.moveTo(26,y+0.5); c.lineTo(pageFront.width-26,y+0.5); c.stroke();
+  }
+  c.strokeStyle = 'rgba(160,60,50,.22)';
+  c.beginPath(); c.moveTo(48,18); c.lineTo(48,pageFront.height-18); c.stroke();
+}
+
+function openCompose(){
+  clearPage(ctxFront); clearPage(ctxBack);
+  facingFront = true; penSelected = false;
+  pageFront.style.display='block'; pageBack.style.display='none';
+  penToolBtn.classList.remove('active');
+  sideLabel.textContent = 'Front — select the pen to write';
+  composeModal.classList.remove('hidden');
+  // Note: deliberately no grow/shrink transform animation here — a moving
+  // transform under a canvas while someone is actively drawing on it causes
+  // every mousemove sample to land in a shifting coordinate space, which
+  // looks glitchy. This window just opens and closes plainly instead.
+}
+
+document.getElementById('composeCancelBtn').addEventListener('click', function(){
+  composeModal.classList.add('hidden');
+});
+
+penToolBtn.addEventListener('click', function(){
+  penSelected = !penSelected;
+  penToolBtn.classList.toggle('active', penSelected);
+  sideLabel.textContent = (facingFront?'Front':'Back') + (penSelected? ' — draw with your mouse':' — pen not selected');
+});
+
+flipBtn.addEventListener('click', function(){
+  pageFlipper.classList.add('flip-anim');
+  setTimeout(function(){
+    facingFront = !facingFront;
+    pageFront.style.display = facingFront? 'block':'none';
+    pageBack.style.display = facingFront? 'none':'block';
+    sideLabel.textContent = (facingFront?'Front':'Back') + (penSelected? ' — draw with your mouse':' — select the pen to write');
+  }, 150);
+  setTimeout(function(){ pageFlipper.classList.remove('flip-anim'); }, 300);
+});
+
+function pagePoint(evt){
+  var c = facingFront ? pageFront : pageBack;
+  var rect = c.getBoundingClientRect();
+  var cx = (evt.touches ? evt.touches[0].clientX : evt.clientX);
+  var cy = (evt.touches ? evt.touches[0].clientY : evt.clientY);
+  return { x: (cx-rect.left) * (c.width/rect.width), y: (cy-rect.top) * (c.height/rect.height) };
+}
+
+function drawStart(evt){
+  if (!penSelected) return;
+  drawing = true;
+  lastPt = pagePoint(evt);
+  evt.preventDefault();
+}
+function drawMove(evt){
+  if (!drawing || !penSelected) return;
+  var c = facingFront ? ctxFront : ctxBack;
+  var p = pagePoint(evt);
+  c.strokeStyle = '#26221c';
+  c.lineWidth = 2.6;
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  c.beginPath();
+  c.moveTo(lastPt.x, lastPt.y);
+  c.lineTo(p.x, p.y);
+  c.stroke();
+  lastPt = p;
+  evt.preventDefault();
+}
+function drawEnd(){ drawing = false; }
+
+pageFlipper.addEventListener('mousedown', drawStart);
+pageFlipper.addEventListener('mousemove', drawMove);
+window.addEventListener('mouseup', drawEnd);
+pageFlipper.addEventListener('touchstart', drawStart, {passive:false});
+pageFlipper.addEventListener('touchmove', drawMove, {passive:false});
+pageFlipper.addEventListener('touchend', drawEnd);
+
+foldBtn.addEventListener('click', function(){
+  var frontPNG = pageFront.toDataURL('image/png');
+  var backPNG = pageBack.toDataURL('image/png');
+  var id = uid();
+  composeModal.classList.add('hidden');
+  foldedLetters.push({ id:id, frontPNG:frontPNG, backPNG:backPNG, used:false });
+  spawnFolded(id);
+  showToast('Letter folded — it\u2019s waiting by the desk. Open an envelope when ready.');
+});
+
+/* =========================================================
+   ENVELOPE FLOW
+   ========================================================= */
+var envelopeModal = document.getElementById('envelopeModal');
+var envelopeVisual = document.getElementById('envelopeVisual');
+var envelopeFlap = document.getElementById('envelopeFlap');
+var dropZone = document.getElementById('dropZone');
+var foldedTray = document.getElementById('foldedTray');
+var envelopeHint = document.getElementById('envelopeHint');
+var envelopeActions = document.getElementById('envelopeActions');
+
+var currentEnvelope = null; // {letterId, flapClosed, sealed}
+var sealMode = false;
+var draggingThumbId = null;
+var envelopeDragObj = null;
+var envelopeDragOffset = {x:0,y:0};
+var envelopeDragActive = false;
+var savedMouseMask = null;
+
+function openEnvelope(){
+  currentEnvelope = { letterId:null, flapClosed:false, recipientText:null, sealed:false };
+  sealMode = false;
+  envelopeDragObj = null;
+  envelopeDragActive = false;
+  if (savedMouseMask === null) savedMouseMask = mouseConstraint.collisionFilter.mask;
+  mouseConstraint.collisionFilter.mask = 0;
+  renderEnvelope();
+  var ev = trayItems[1];
+  var sourceRect = canvasObjectRect(ev.x + ev.w/2, ev.y + ev.h/2, ev.w, ev.h);
+  envelopeModal.classList.remove('hidden');
+  growFromRect(envelopeVisual, sourceRect);
+}
+
+function unusedFolded(){
+  return foldedLetters.filter(function(f){ return !f.used; });
+}
+
+function renderEnvelope(){
+  envelopeVisual.classList.toggle('flap-closed', currentEnvelope.flapClosed);
+  envelopeVisual.classList.toggle('seal-mode', sealMode);
+  envelopeVisual.innerHTML = '';
+
+  // fixed pocket folds (left/right/bottom) — always behind the letter
+  var pocketWrap = document.createElement('div');
+  pocketWrap.className = 'env-pocket';
+  ['left','right','bottom'].forEach(function(side){
+    var fold = document.createElement('div');
+    fold.className = 'env-fold ' + side;
+    pocketWrap.appendChild(fold);
+  });
+  envelopeVisual.appendChild(pocketWrap);
+
+  // the top flap gets its own perspective wrapper, kept separate from the
+  // pocket so its z-index (set in CSS, toggled by .flap-closed) can put it
+  // behind the letter while open and in front of it once closed — that's
+  // what makes the letter actually look tucked inside rather than pasted
+  // on top of the envelope regardless of whether the flap is shut
+  var flapWrap = document.createElement('div');
+  flapWrap.className = 'env-flap-wrap';
+  var flap = document.createElement('div');
+  flap.className = 'env-fold top';
+  flap.id = 'envelopeFlap';
+  flapWrap.appendChild(flap);
+  envelopeVisual.appendChild(flapWrap);
+
+  if (currentEnvelope.letterId){
+    var ins = document.createElement('div');
+    ins.className = 'inserted-letter';
+    var inserted = foldedLetters.find(function(x){ return x.id===currentEnvelope.letterId; });
+    // show the FRONT page — that's the side almost everyone actually
+    // writes on, so it's the side that will visibly have ink on it.
+    // Showing the back (as before) usually meant showing a blank page,
+    // which is nearly invisible against the envelope's own cream tone.
+    if (inserted && inserted.frontPNG) ins.style.backgroundImage = 'url(' + inserted.frontPNG + ')';
+    envelopeVisual.appendChild(ins);
+  } else {
+    var dz = document.createElement('div');
+    dz.className = 'drop-zone';
+    dz.id = 'dropZone';
+    dz.textContent = 'Drop the folded letter here';
+    dz.addEventListener('dragover', function(e){ e.preventDefault(); });
+    dz.addEventListener('drop', function(e){
+      e.preventDefault();
+      var id = e.dataTransfer.getData('text/plain');
+      insertFolded(id);
+    });
+    envelopeVisual.appendChild(dz);
+  }
+
+  if (currentEnvelope.recipientText){
+    var addrLine = document.createElement('div');
+    addrLine.style.cssText = 'position:absolute;left:16px;bottom:13px;right:16px;font-size:12px;color:#4a3a22;font-style:italic;pointer-events:none;z-index:4;';
+    addrLine.textContent = 'to ' + currentEnvelope.recipientText;
+    envelopeVisual.appendChild(addrLine);
+  }
+
+  if (currentEnvelope.sealed){
+    var wax = document.createElement('div');
+    wax.className = 'wax-mark';
+    envelopeVisual.appendChild(wax);
+  }
+
+  envelopeVisual.onclick = function(){
+    if (sealMode && currentEnvelope.flapClosed && !currentEnvelope.sealed){
+      currentEnvelope.sealed = true;
+      sealMode = false;
+      renderEnvelope();
+      showToast('Sealed. Drag it to the pigeon at the window to send.');
+    }
+  };
+
+  // Folded letters stay physically in the room. Drag them directly into the open envelope.
+  foldedTray.innerHTML = '';
+
+
+  // hint + actions
+  envelopeActions.innerHTML = '';
+  if (!currentEnvelope.letterId){
+    envelopeHint.textContent = 'Drag a folded letter from the room into the envelope.';
+  } else if (!currentEnvelope.flapClosed){
+    envelopeHint.textContent = 'Letter inside. Close the flap when ready.';
+    envelopeActions.appendChild(makeBtn('Close flap', 'tool-btn primary', function(){
+      currentEnvelope.flapClosed = true;
+      renderEnvelope();
+    }));
+  } else if (!currentEnvelope.recipientText){
+    envelopeHint.textContent = 'Address the envelope before it can be sealed.';
+    envelopeActions.appendChild(makeBtn('Address it', 'tool-btn primary', openAddressModal));
+  } else if (!currentEnvelope.sealed){
+    envelopeHint.textContent = 'Pick up the wax seal, then click the middle of the envelope.';
+    envelopeActions.appendChild(makeBtn('\uD83D\uDD6F Wax seal', 'tool-btn' + (sealMode?' active':''), function(){
+      sealMode = !sealMode;
+      renderEnvelope();
+    }));
+  } else {
+    envelopeHint.textContent = 'Sealed and ready.';
+    envelopeActions.appendChild(makeBtn('Done', 'tool-btn primary', finalizeEnvelope));
+  }
+  envelopeActions.appendChild(makeBtn('Cancel', 'tool-btn ghost', cancelEnvelope));
+}
+
+function makeBtn(label, cls, onClick){
+  var b = document.createElement('button');
+  b.className = cls;
+  b.textContent = label;
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function insertFolded(id){
+  var f = foldedLetters.find(function(x){ return x.id===id; });
+  if (!f || f.used) return;
+  currentEnvelope.letterId = id;
+  var fo = physicsObjects.find(function(o){ return o.kind==='folded' && o.letterId===id; });
+  if (fo) fo.hidden = true;
+  renderEnvelope();
+}
+
+function leaveEnvelopeInteraction(){
+  envelopeDragObj = null;
+  envelopeDragActive = false;
+  if (savedMouseMask !== null){
+    mouseConstraint.collisionFilter.mask = savedMouseMask;
+    savedMouseMask = null;
+  }
+}
+
+function finalizeEnvelope(){
+  var f = foldedLetters.find(function(x){ return x.id===currentEnvelope.letterId; });
+  if (f) f.used = true;
+  // remove the folded physics body for this letter, if still sitting on the desk
+  var idx = physicsObjects.findIndex(function(o){ return o.kind==='folded' && o.letterId===currentEnvelope.letterId; });
+  if (idx>=0){ removeObject(physicsObjects[idx]); }
+  var recipientText = currentEnvelope.recipientText;
+  var ev = trayItems[1];
+  var targetRect = canvasObjectRect(ev.x + ev.w/2, ev.y + ev.h/2, ev.w, ev.h);
+  shrinkToRect(envelopeVisual, targetRect, 280, function(){
+    leaveEnvelopeInteraction();
+    envelopeModal.classList.add('hidden');
+    if (f) spawnSealed(f, recipientText);
+    showToast('Sealed envelope set on the desk — drag it to the window to send.');
+  });
+}
+
+function cancelEnvelope(){
+  if (envelopeDragObj){
+    Body.setStatic(envelopeDragObj.body, false);
+    Body.setVelocity(envelopeDragObj.body, {x:0,y:0});
+    envelopeDragObj = null;
+  }
+  if (currentEnvelope && currentEnvelope.letterId){
+    var fo = physicsObjects.find(function(o){ return o.kind==='folded' && o.letterId===currentEnvelope.letterId; });
+    if (fo) fo.hidden = false;
+  }
+  leaveEnvelopeInteraction();
+  var ev = trayItems[1];
+  var targetRect = canvasObjectRect(ev.x + ev.w/2, ev.y + ev.h/2, ev.w, ev.h);
+  shrinkToRect(envelopeVisual, targetRect, 260, function(){
+    envelopeModal.classList.add('hidden');
+  });
+}
+
+/* =========================================================
+   ADDRESS MODAL — on-screen keyboard, alphabetical order
+   The display can only be filled by clicking these keys; there is no
+   text input for the physical keyboard to reach.
+   ========================================================= */
+var addressModal = document.getElementById('addressModal');
+var addrDisplay = document.getElementById('addrDisplay');
+var onscreenKeyboard = document.getElementById('onscreenKeyboard');
+var addrClearBtn = document.getElementById('addrClearBtn');
+var addrUseBtn = document.getElementById('addrUseBtn');
+var typedAddress = '';
+
+// Every key, shuffled into a genuinely random layout each time the
+// envelope is addressed — not alphabetical, not the same layout twice.
+var ALL_KEYS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@.-_'.split('');
+var KB_ROW_SIZES = [13, 13, 10, 4];
+
+function shuffledRows(){
+  var pool = ALL_KEYS.slice();
+  for (var i = pool.length - 1; i > 0; i--){
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+  }
+  var rows = [], idx = 0;
+  KB_ROW_SIZES.forEach(function(size){
+    rows.push(pool.slice(idx, idx + size));
+    idx += size;
+  });
+  return rows;
+}
+
+function buildKeyboard(){
+  onscreenKeyboard.innerHTML = '';
+  shuffledRows().forEach(function(row){
+    var rowEl = document.createElement('div');
+    rowEl.className = 'kb-row';
+    row.forEach(function(ch){
+      var key = document.createElement('button');
+      key.type = 'button'; key.className = 'key-btn'; key.textContent = ch;
+      key.addEventListener('click', function(){ typedAddress += ch; renderAddrDisplay(); });
+      rowEl.appendChild(key);
+    });
+    onscreenKeyboard.appendChild(rowEl);
+  });
+  var bottomRow = document.createElement('div');
+  bottomRow.className = 'kb-row';
+  var spaceKey = document.createElement('button');
+  spaceKey.type = 'button'; spaceKey.className = 'key-btn key-space'; spaceKey.textContent = 'space';
+  spaceKey.addEventListener('click', function(){ typedAddress += ' '; renderAddrDisplay(); });
+  var backKey = document.createElement('button');
+  backKey.type = 'button'; backKey.className = 'key-btn key-back'; backKey.textContent = '\u232B';
+  backKey.addEventListener('click', function(){ typedAddress = typedAddress.slice(0,-1); renderAddrDisplay(); });
+  bottomRow.appendChild(spaceKey); bottomRow.appendChild(backKey);
+  onscreenKeyboard.appendChild(bottomRow);
+}
+
+function renderAddrDisplay(){
+  addrDisplay.textContent = typedAddress || '\u00A0';
+}
+
+function openAddressModal(){
+  typedAddress = currentEnvelope.recipientText || '';
+  renderAddrDisplay();
+  buildKeyboard(); // fresh random layout every time
+  addressModal.classList.remove('hidden');
+  growFromEl(document.getElementById('addressCard'), envelopeVisual);
+}
+
+function closeAddressModal(after){
+  shrinkToEl(document.getElementById('addressCard'), envelopeVisual, 260, function(){
+    addressModal.classList.add('hidden');
+    if (after) after();
+  });
+}
+
+addrClearBtn.addEventListener('click', function(){ typedAddress = ''; renderAddrDisplay(); });
+addrUseBtn.addEventListener('click', function(){
+  var text = typedAddress.trim();
+  if (!text){ showToast('Type an address with the keys first.'); return; }
+  currentEnvelope.recipientText = text;
+  closeAddressModal(function(){ renderEnvelope(); });
+});
+
+
+document.getElementById('helpBtn').addEventListener('click', function(){
+  document.getElementById('helpPanel').classList.remove('hidden');
+});
+document.getElementById('helpCloseBtn').addEventListener('click', function(){
+  document.getElementById('helpPanel').classList.add('hidden');
+});
+
+/* =========================================================
+   SEND FLOW
+   ========================================================= */
+function inWindow(pos){
+  return pos.x > WINDOW_A.x-20 && pos.x < WINDOW_A.x+WINDOW_A.w+20 &&
+         pos.y > WINDOW_A.y-20 && pos.y < WINDOW_A.y+WINDOW_A.h+40;
+}
+
+var pigeonOffset = { x:0, y:0 };
+
+function tweenPigeon(to, duration, cb){
+  var from = { x: pigeonOffset.x, y: pigeonOffset.y };
+  var start = performance.now();
+  pigeonFlap = 1;
+  function step(now){
+    var t = Math.min(1, (now-start)/duration);
+    var ease = t<0.5 ? 2*t*t : -1+(4-2*t)*t;
+    pigeonOffset.x = from.x + (to.x-from.x)*ease;
+    pigeonOffset.y = from.y + (to.y-from.y)*ease;
+    if (t<1) requestAnimationFrame(step);
+    else if (cb) cb();
+  }
+  requestAnimationFrame(step);
+}
+
+function sendLetter(obj){
+  var addr = obj.recipientText || 'someone';
+  var frontPNG = obj.frontPNG, backPNG = obj.backPNG;
+  removeObject(obj);
+  showToast('The pigeon takes it to ' + addr + '\u2026');
+
+  tweenPigeon({ x:230, y:-210 }, 850, function(){
+    fetch(SERVER_URL + '/api/letters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: addr,
+        subject: 'A letter from the table',
+        body: '(a folded, handwritten letter — image attachments aren\u2019t wired up on the server yet, this is placeholder text so the send still goes through)'
+      })
+    })
+    .then(function(res){
+      if (!res.ok) throw new Error('server rejected the letter');
+      return res.json();
+    })
+    .then(function(data){
+      pollSendStatus(data.id, addr, frontPNG, backPNG);
+    })
+    .catch(function(err){
+      console.warn('could not reach mail server:', err.message);
+      showToast('Could not reach the mail server — is it running?');
+      tweenPigeon({ x:0, y:0 }, 850, function(){ pigeonFlap = 0; });
+    });
+  });
+}
+
+// Polls the backend every 1.5s until a sent letter is no longer "pending",
+// then brings the pigeon home and reports the outcome.
+function pollSendStatus(id, addr, frontPNG, backPNG){
+  var tries = 0;
+  var maxTries = 40; // ~60s safety cap in case the server never resolves it
+  var poll = setInterval(function(){
+    tries++;
+    fetch(SERVER_URL + '/api/letters/' + id + '/status')
+      .then(function(res){ return res.json(); })
+      .then(function(data){
+        if (data.status === 'pending' && tries < maxTries) return;
+        clearInterval(poll);
+        if (data.status === 'lost'){
+          showToast('A letter to ' + addr + ' never arrived.');
+        } else if (data.status === 'delivered'){
+          showToast('Delivered to ' + addr + '.');
+          showSentPreview(frontPNG, backPNG);
+        } else {
+          showToast('Lost track of the letter to ' + addr + '.');
+        }
+        tweenPigeon({ x:0, y:0 }, 850, function(){ pigeonFlap = 0; });
+      })
+      .catch(function(){
+        clearInterval(poll);
+        showToast('Lost contact with the mail server.');
+        tweenPigeon({ x:0, y:0 }, 850, function(){ pigeonFlap = 0; });
+      });
+  }, 1500);
+}
+
+function savePNG(dataUrl, filename){
+  try{
+    var a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch(e){
+    showToast('Couldn\u2019t save that file here.');
+  }
+}
+
+function showSentPreview(frontPNG, backPNG){
+  var wrap = document.getElementById('toast');
+  wrap.innerHTML = '';
+  var msg = document.createElement('div');
+  msg.innerHTML = 'Sent! (simulated \u2014 no live mail account connected)<br/><span style="opacity:.8;font-size:11px;">handwritten page attached as PNG</span>';
+  wrap.appendChild(msg);
+  var img = document.createElement('img');
+  img.src = frontPNG;
+  img.title = 'Save front page';
+  img.style.cursor = 'pointer';
+  img.addEventListener('click', function(){ savePNG(frontPNG, 'letter-front.png'); });
+  wrap.appendChild(img);
+  if (backPNG){
+    var img2 = document.createElement('img');
+    img2.src = backPNG;
+    img2.title = 'Save back page';
+    img2.style.cursor = 'pointer';
+    img2.addEventListener('click', function(){ savePNG(backPNG, 'letter-back.png'); });
+    wrap.appendChild(img2);
+  }
+  wrap.classList.add('show');
+  clearTimeout(wrap.__hideTimer);
+  wrap.__hideTimer = setTimeout(function(){ wrap.classList.remove('show'); }, 5200);
+}
+
+/* =========================================================
+   TOAST (generic)
+   ========================================================= */
+function showToast(text){
+  var wrap = document.getElementById('toast');
+  wrap.innerHTML = '';
+  var span = document.createElement('span');
+  span.textContent = text;
+  wrap.appendChild(span);
+  wrap.classList.add('show');
+  clearTimeout(wrap.__hideTimer);
+  wrap.__hideTimer = setTimeout(function(){ wrap.classList.remove('show'); }, 2800);
+}
+
+/* =========================================================
+   SHARED "GROW FROM / SHRINK TO" WINDOW ANIMATION
+   Every popup in this room should visually come from a real object on
+   the table (a letter, the blank page stack, an envelope) rather than
+   just appearing out of nowhere. canvasObjectRect() converts a logical
+   scene position/size into an on-screen rect so canvas-drawn objects
+   can be used as sources too.
+   ========================================================= */
+function canvasObjectRect(cx, cy, cw, ch){
+  var rect = canvas.getBoundingClientRect();
+  var scaleX = rect.width / W, scaleY = rect.height / H;
+  return {
+    left: rect.left + (cx - cw/2) * scaleX,
+    top: rect.top + (cy - ch/2) * scaleY,
+    width: cw * scaleX,
+    height: ch * scaleY
+  };
+}
+
+function growFromRect(panelEl, rect){
+  panelEl.style.transition = 'none';
+  panelEl.style.transform = 'translate(0,0) scale(1,1)';
+  panelEl.style.opacity = '1';
+  requestAnimationFrame(function(){
+    var target = panelEl.getBoundingClientRect();
+    var scaleX = rect.width / target.width, scaleY = rect.height / target.height;
+    var dx = (rect.left + rect.width/2) - (target.left + target.width/2);
+    var dy = (rect.top + rect.height/2) - (target.top + target.height/2);
+    panelEl.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + scaleX + ',' + scaleY + ')';
+    panelEl.style.opacity = '0.4';
+    requestAnimationFrame(function(){
+      panelEl.style.transition = 'transform .38s cubic-bezier(.2,.8,.2,1), opacity .28s ease';
+      panelEl.style.transform = 'translate(0,0) scale(1,1)';
+      panelEl.style.opacity = '1';
+    });
+  });
+}
+
+function shrinkToRect(panelEl, rect, duration, onDone){
+  duration = duration || 320;
+  var source = panelEl.getBoundingClientRect();
+  var scaleX = rect.width / source.width, scaleY = rect.height / source.height;
+  var dx = (rect.left + rect.width/2) - (source.left + source.width/2);
+  var dy = (rect.top + rect.height/2) - (source.top + source.height/2);
+  panelEl.style.transition = 'transform ' + duration + 'ms cubic-bezier(.4,0,.6,1), opacity ' + Math.round(duration*0.85) + 'ms ease';
+  panelEl.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + scaleX + ',' + scaleY + ')';
+  panelEl.style.opacity = '0.3';
+  setTimeout(function(){
+    panelEl.style.transition = '';
+    panelEl.style.transform = '';
+    panelEl.style.opacity = '';
+    if (onDone) onDone();
+  }, duration);
+}
+
+// thin wrappers for when the source is a real DOM element rather than a
+// canvas-drawn object (e.g. growing the address keyboard from the
+// envelope that's already showing as DOM inside the envelope modal)
+function growFromEl(panelEl, sourceEl){ growFromRect(panelEl, sourceEl.getBoundingClientRect()); }
+function shrinkToEl(panelEl, sourceEl, duration, onDone){ shrinkToRect(panelEl, sourceEl.getBoundingClientRect(), duration, onDone); }
+
+/* =========================================================
+   INPUT: click vs drag detection + hit testing
+   ========================================================= */
+var downPt = null, downTime = 0, downTarget = null;
+var CLICK_DIST = 6, CLICK_TIME = 320;
+
+function worldPos(evt){
+  var rect = canvas.getBoundingClientRect();
+  var cx = (evt.touches ? evt.touches[0].clientX : evt.clientX);
+  var cy = (evt.touches ? evt.touches[0].clientY : evt.clientY);
+  return { x: (cx-rect.left) * (W/rect.width), y: (cy-rect.top) * (H/rect.height) };
+}
+
+function hitTray(pos){
+  for (var i=0;i<trayItems.length;i++){
+    var t = trayItems[i];
+    if (pos.x>=t.x && pos.x<=t.x+t.w && pos.y>=t.y && pos.y<=t.y+t.h) return t;
+  }
+  return null;
+}
+
+function hitPhysicsObject(pos){
+  var visible = physicsObjects.filter(function(o){ return !o.hidden; });
+  var found = Query.point(visible.map(function(o){return o.body;}), pos);
+  if (!found.length) return null;
+  var body = found[found.length-1];
+  for (var i=0;i<visible.length;i++){
+    if (visible[i].body === body) return visible[i];
+  }
+  return null;
+}
+
+function envelopeVisualContains(clientX, clientY){
+  var r = envelopeVisual.getBoundingClientRect();
+  return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+}
+
+// While a folded letter is being dragged toward the envelope, it's normally
+// drawn on the background canvas — which sits *behind* the opaque envelope
+// panel. Rather than let it visually vanish the moment it passes behind
+// that panel, we hide the canvas copy during the drag and show a small
+// floating "ghost" above everything (including the envelope modal), so it
+// genuinely looks like you're carrying it above the table.
+var dragGhostEl = null;
+
+function createDragGhost(clientX, clientY){
+  dragGhostEl = document.createElement('div');
+  dragGhostEl.className = 'folded-thumb';
+  dragGhostEl.style.position = 'fixed';
+  dragGhostEl.style.zIndex = '60';
+  dragGhostEl.style.pointerEvents = 'none';
+  dragGhostEl.style.transform = 'translate(-50%,-50%) rotate(-2deg)';
+  dragGhostEl.style.left = clientX + 'px';
+  dragGhostEl.style.top = clientY + 'px';
+  document.body.appendChild(dragGhostEl);
+}
+function moveDragGhost(clientX, clientY){
+  if (!dragGhostEl) return;
+  dragGhostEl.style.left = clientX + 'px';
+  dragGhostEl.style.top = clientY + 'px';
+}
+function removeDragGhost(){
+  if (dragGhostEl){ dragGhostEl.remove(); dragGhostEl = null; }
+}
+
+function beginEnvelopeRoomDrag(evt){
+  if (envelopeModal.classList.contains('hidden') || currentEnvelope.letterId) return false;
+  var pos = worldPos(evt);
+  var obj = hitPhysicsObject(pos);
+  if (!obj || obj.kind !== 'folded') return false;
+  envelopeDragObj = obj;
+  envelopeDragActive = true;
+  envelopeDragOffset.x = obj.body.position.x - pos.x;
+  envelopeDragOffset.y = obj.body.position.y - pos.y;
+  Body.setStatic(obj.body, true);
+  obj.hidden = true;
+  var cx = evt.touches ? evt.touches[0].clientX : evt.clientX;
+  var cy = evt.touches ? evt.touches[0].clientY : evt.clientY;
+  createDragGhost(cx, cy);
+  evt.preventDefault();
+  evt.stopPropagation();
+  return true;
+}
+
+function moveEnvelopeRoomDrag(clientX, clientY, evt){
+  if (!envelopeDragActive || !envelopeDragObj) return;
+  var rect = canvas.getBoundingClientRect();
+  var pos = { x:(clientX-rect.left)*(W/rect.width), y:(clientY-rect.top)*(H/rect.height) };
+  Body.setPosition(envelopeDragObj.body, {x:pos.x+envelopeDragOffset.x,y:pos.y+envelopeDragOffset.y});
+  Body.setVelocity(envelopeDragObj.body, {x:0,y:0});
+  moveDragGhost(clientX, clientY);
+  if (evt && evt.preventDefault) evt.preventDefault();
+}
+
+function endEnvelopeRoomDrag(clientX, clientY, evt){
+  if (!envelopeDragActive || !envelopeDragObj) return false;
+  var obj = envelopeDragObj;
+  var overEnvelope = envelopeVisualContains(clientX, clientY);
+  envelopeDragObj = null;
+  envelopeDragActive = false;
+  removeDragGhost();
+  if (overEnvelope && currentEnvelope && !currentEnvelope.letterId){
+    Body.setPosition(obj.body, {x:DESK.x+40,y:DESK.y-30});
+    insertFolded(obj.letterId); // this sets obj.hidden = true and shows it as the DOM letter, above the envelope
+  }else{
+    Body.setStatic(obj.body, false);
+    Body.setVelocity(obj.body, {x:0,y:0});
+    obj.hidden = false; // back to being drawn normally on the canvas
+  }
+  if (evt && evt.preventDefault) evt.preventDefault();
+  return true;
+}
+
+canvas.addEventListener('mousedown', function(evt){
+  if (beginEnvelopeRoomDrag(evt)) return;
+  downPt = worldPos(evt); downTime = performance.now();
+  canvas.classList.add('dragging');
+});
+canvas.addEventListener('touchstart', function(evt){
+  if (beginEnvelopeRoomDrag(evt)) return;
+  downPt = worldPos(evt); downTime = performance.now();
+}, {passive:false});
+
+window.addEventListener('touchmove', function(evt){
+  if (!envelopeDragActive) return;
+  var t = evt.touches[0];
+  moveEnvelopeRoomDrag(t.clientX, t.clientY, evt);
+}, {passive:false});
+
+window.addEventListener('mousemove', function(evt){
+  moveEnvelopeRoomDrag(evt.clientX, evt.clientY, evt);
+});
+
+window.addEventListener('mouseup', function(evt){
+  if (endEnvelopeRoomDrag(evt.clientX, evt.clientY, evt)) {
+    downPt = null;
+    canvas.classList.remove('dragging');
+    return;
+  }
+  canvas.classList.remove('dragging');
+  if (!downPt) return;
+  var up = worldPos(evt);
+  var dist = Math.hypot(up.x-downPt.x, up.y-downPt.y);
+  var dt = performance.now()-downTime;
+  if (dist < CLICK_DIST && dt < CLICK_TIME){
+    var tray = hitTray(up);
+    if (tray){
+      if (tray.type==='page') openCompose();
+      else if (tray.type==='envelope') openEnvelope();
+      else if (tray.type==='seal') showToast('Open an envelope first, then pick up the seal there.');
+      else if (tray.type==='pen') showToast('The pen lives with the writing desk \u2014 click a blank page to start.');
+    } else {
+      var obj = hitPhysicsObject(up);
+      if (obj && obj.kind==='mail') openLetter(obj);
+      else if (obj && obj.kind==='folded') showToast('A folded letter \u2014 open an envelope to send it.');
+    }
+  }
+  downPt = null;
+});
+window.addEventListener('touchend', function(evt){
+  if (envelopeDragActive){
+    var t = evt.changedTouches[0];
+    endEnvelopeRoomDrag(t.clientX, t.clientY, evt);
+    downPt = null;
+    return;
+  }
+  if (!downPt) return;
+  var rect = canvas.getBoundingClientRect();
+  var last = evt.changedTouches[0];
+  var up = { x:(last.clientX-rect.left)*(W/rect.width), y:(last.clientY-rect.top)*(H/rect.height) };
+  var dist = Math.hypot(up.x-downPt.x, up.y-downPt.y);
+  var dt = performance.now()-downTime;
+  if (dist < CLICK_DIST*2 && dt < CLICK_TIME){
+    var tray = hitTray(up);
+    if (tray){
+      if (tray.type==='page') openCompose();
+      else if (tray.type==='envelope') openEnvelope();
+    } else {
+      var obj = hitPhysicsObject(up);
+      if (obj && obj.kind==='mail') openLetter(obj);
+    }
+  }
+  downPt = null;
+});
+
+Events.on(mouseConstraint, 'enddrag', function(e){
+  var body = e.body;
+  if (!body) return;
+  for (var i=0;i<physicsObjects.length;i++){
+    var o = physicsObjects[i];
+    if (o.body === body && o.kind==='sealed'){
+      if (inWindow(body.position)) sendLetter(o);
+      return;
+    }
+  }
+});
+
+/* =========================================================
+   DRAWING
+   ========================================================= */
+function roundedRect(c,x,y,w,h,r){
+  var rr=Math.min(r,Math.abs(w)/2,Math.abs(h)/2); c.beginPath(); c.moveTo(x+rr,y); c.arcTo(x+w,y,x+w,y+h,rr); c.arcTo(x+w,y+h,x,y+h,rr); c.arcTo(x,y+h,x,y,rr); c.arcTo(x,y,x+w,y,rr); c.closePath();
+}
+function softShadow(offsetY, blur, alpha){ ctx.shadowColor='rgba(0,0,0,'+alpha+')'; ctx.shadowBlur=blur; ctx.shadowOffsetY=offsetY; }
+function clearShadow(){ ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetY=0; }
+function drawSceneBackground(){
+  ctx.fillStyle='#59675f'; ctx.fillRect(0,0,W,H);
+  var wallGrad=ctx.createLinearGradient(0,0,0,FLOOR_Y); wallGrad.addColorStop(0,'#6e7d75'); wallGrad.addColorStop(.55,'#5f6e67'); wallGrad.addColorStop(1,'#515f59'); ctx.fillStyle=wallGrad; ctx.fillRect(0,0,W,FLOOR_Y);
+  // subtle wallpaper panels
+  ctx.strokeStyle='rgba(245,238,216,.055)'; ctx.lineWidth=1;
+  for(var x=16;x<W;x+=72){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,FLOOR_Y);ctx.stroke()}
+  ctx.fillStyle='rgba(32,28,23,.07)'; ctx.fillRect(0,0,W,44);
+  // framed picture
+  softShadow(5,12,.2); ctx.fillStyle='#77562f'; ctx.fillRect(122,108,148,118); clearShadow();
+  ctx.fillStyle='#cbb277'; ctx.fillRect(130,116,132,102); ctx.fillStyle='#96a8a2'; ctx.fillRect(138,124,116,86);
+  ctx.fillStyle='#d8c7a4'; ctx.beginPath();ctx.moveTo(144,198);ctx.lineTo(170,163);ctx.lineTo(191,181);ctx.lineTo(212,145);ctx.lineTo(249,205);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#657873';ctx.beginPath();ctx.arc(208,155,11,0,Math.PI*2);ctx.fill();
+  // wall sconce glow
+  var glow=ctx.createRadialGradient(315,166,8,315,166,95);glow.addColorStop(0,'rgba(255,225,152,.3)');glow.addColorStop(1,'rgba(255,225,152,0)');ctx.fillStyle=glow;ctx.fillRect(220,70,190,190);
+  ctx.fillStyle='#8e7142';ctx.fillRect(309,140,12,34);ctx.fillStyle='#b89147';ctx.beginPath();ctx.arc(315,135,18,Math.PI,0);ctx.fill();
+  ctx.fillStyle='rgba(255,231,173,.9)';ctx.beginPath();ctx.arc(315,128,7,0,Math.PI*2);ctx.fill();
+  // skirting board
+  ctx.fillStyle='#c9b38b';ctx.fillRect(0,FLOOR_Y-8,W,9);ctx.fillStyle='rgba(63,43,28,.28)';ctx.fillRect(0,FLOOR_Y,W,3);
+  // floor with perspective boards
+  var floorGrad=ctx.createLinearGradient(0,FLOOR_Y,0,H);floorGrad.addColorStop(0,'#795535');floorGrad.addColorStop(1,'#4e3421');ctx.fillStyle=floorGrad;ctx.fillRect(0,FLOOR_Y,W,H-FLOOR_Y);
+  ctx.strokeStyle='rgba(244,214,170,.08)';ctx.lineWidth=1;
+  for(var fx=-200;fx<W+220;fx+=74){ctx.beginPath();ctx.moveTo(600+(fx-600)*.35,FLOOR_Y);ctx.lineTo(fx,H);ctx.stroke()}
+  for(var fy=FLOOR_Y+28;fy<H;fy+=42){ctx.beginPath();ctx.moveTo(0,fy);ctx.lineTo(W,fy);ctx.stroke()}
+  // warm floor pool under the work area
+  var pool=ctx.createRadialGradient(900,585,10,900,585,330);pool.addColorStop(0,'rgba(216,161,74,.12)');pool.addColorStop(1,'rgba(216,161,74,0)');ctx.fillStyle=pool;ctx.fillRect(560,FLOOR_Y,640,H-FLOOR_Y);
+}
+function drawDoor(){
+  // frame and recessed door
+  softShadow(9,16,.28); ctx.fillStyle='#3a2416'; roundedRect(ctx,DOOR.x-20,DOOR.y-18,DOOR.w+40,DOOR.h+36,10); ctx.fill(); clearShadow();
+  var dg=ctx.createLinearGradient(DOOR.x,0,DOOR.x+DOOR.w,0);dg.addColorStop(0,'#53331e');dg.addColorStop(.48,'#7a4b29');dg.addColorStop(1,'#5b3921');ctx.fillStyle=dg;roundedRect(ctx,DOOR.x,DOOR.y,DOOR.w,DOOR.h,5);ctx.fill();
+  ctx.strokeStyle='rgba(255,220,173,.11)';ctx.lineWidth=2;ctx.strokeRect(DOOR.x+16,DOOR.y+17,DOOR.w-32,DOOR.h*.4);ctx.strokeRect(DOOR.x+16,DOOR.y+DOOR.h*.49,DOOR.w-32,DOOR.h*.41);
+  // panels
+  ctx.strokeStyle='rgba(37,22,12,.45)';ctx.lineWidth=6;ctx.strokeRect(DOOR.x+21,DOOR.y+22,DOOR.w-42,DOOR.h*.37);ctx.strokeRect(DOOR.x+21,DOOR.y+DOOR.h*.54,DOOR.w-42,DOOR.h*.33);
+  // brass fixtures
+  ctx.fillStyle='#a97b32';ctx.beginPath();ctx.arc(DOOR.x+DOOR.w-29,DOOR.y+DOOR.h*.52,10,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ddb45f';ctx.beginPath();ctx.arc(DOOR.x+DOOR.w-31,DOOR.y+DOOR.h*.5,4,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#22160c';roundedRect(ctx,SLOT.x-SLOT.w/2,SLOT.y,SLOT.w,SLOT.h,3);ctx.fill();ctx.fillStyle='#d4ad5c';roundedRect(ctx,SLOT.x-SLOT.w/2-5,SLOT.y-5,SLOT.w+10,4,2);ctx.fill();
+  ctx.fillStyle='rgba(255,244,210,.7)';ctx.font='10px Georgia';ctx.fillText('PRIVATE CORRESPONDENCE',DOOR.x+46,DOOR.y+32);
+}
+function drawMat(){
+  ctx.save(); softShadow(7,12,.25); ctx.fillStyle='#7c522f';roundedRect(ctx,MAT.x-6,MAT.y-4,MAT.w+12,MAT.h+9,8);ctx.fill();clearShadow();
+  ctx.strokeStyle='#9b1f36';ctx.lineWidth=6;ctx.strokeRect(MAT.x+7,MAT.y+7,MAT.w-14,MAT.h-14);ctx.strokeStyle='rgba(243,213,171,.12)';ctx.lineWidth=1;
+  for(var i=0;i<MAT.w;i+=12){ctx.beginPath();ctx.moveTo(MAT.x+i,MAT.y+2);ctx.lineTo(MAT.x+i-3,MAT.y+MAT.h-2);ctx.stroke()}
+  ctx.fillStyle='rgba(248,225,186,.78)';ctx.font='bold 11px Georgia';ctx.textAlign='center';ctx.fillText('DELIVERIES',MAT.x+MAT.w/2,MAT.y+MAT.h/2+4);ctx.textAlign='left';ctx.restore();
+}
+function drawShredder(){
+  ctx.save();softShadow(8,14,.28);ctx.fillStyle='#202125';roundedRect(ctx,SHREDDER.x,SHREDDER.y+30,SHREDDER.w,SHREDDER.h-20,10);ctx.fill();clearShadow();
+  var top=ctx.createLinearGradient(0,SHREDDER.y,0,SHREDDER.y+38);top.addColorStop(0,'#4a4b50');top.addColorStop(1,'#2c2d31');ctx.fillStyle=top;roundedRect(ctx,SHREDDER.x-6,SHREDDER.y,SHREDDER.w+12,38,8);ctx.fill();
+  ctx.fillStyle='#0a0a0c';roundedRect(ctx,SHREDDER.x+19,SHREDDER.y+11,SHREDDER.w-38,10,4);ctx.fill();
+  ctx.fillStyle='#d2a145';roundedRect(ctx,SHREDDER.x+13,SHREDDER.y+SHREDDER.h-28,SHREDDER.w-26,7,3);ctx.fill();
+  ctx.fillStyle='#8c1f2e';ctx.beginPath();ctx.arc(SHREDDER.x+SHREDDER.w-22,SHREDDER.y+SHREDDER.h-55,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#e6dac4';ctx.font='bold 12px Georgia';ctx.fillText('SHREDDER',SHREDDER.x+37,SHREDDER.y+SHREDDER.h-11);ctx.restore();
+}
+function drawDesk(){
+  ctx.save();
+  // legs and cabinet
+  ctx.fillStyle='#402818';ctx.fillRect(DESK.x+6,DESK.y+107,17,72);ctx.fillRect(DESK.x+DESK.w-23,DESK.y+107,17,72);
+  softShadow(9,16,.23);var wood=ctx.createLinearGradient(0,DESK.y,0,DESK.y+80);wood.addColorStop(0,'#6f4728');wood.addColorStop(1,'#4b2e1b');ctx.fillStyle=wood;roundedRect(ctx,DESK.x-10,DESK.y+24,DESK.w+20,DESK.h+20,8);ctx.fill();clearShadow();
+  ctx.fillStyle='#8e6034';ctx.fillRect(DESK.x+8,DESK.y+30,DESK.w-16,5);ctx.fillStyle='rgba(250,211,160,.1)';ctx.fillRect(DESK.x+7,DESK.y+55,DESK.w-14,2);
+  // desk lamp
+  ctx.strokeStyle='#c09b56';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(DESK.x+124,DESK.y+24);ctx.lineTo(DESK.x+143,DESK.y-15);ctx.stroke();ctx.fillStyle='#c09b56';ctx.beginPath();ctx.arc(DESK.x+124,DESK.y+24,5,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.moveTo(DESK.x+130,DESK.y-27);ctx.lineTo(DESK.x+161,DESK.y-20);ctx.lineTo(DESK.x+151,DESK.y-1);ctx.lineTo(DESK.x+122,DESK.y-8);ctx.closePath();ctx.fill();
+  var lampGlow=ctx.createRadialGradient(DESK.x+145,DESK.y+6,2,DESK.x+145,DESK.y+6,95);lampGlow.addColorStop(0,'rgba(255,222,149,.19)');lampGlow.addColorStop(1,'rgba(255,222,149,0)');ctx.fillStyle=lampGlow;ctx.fillRect(DESK.x+72,DESK.y-80,150,150);
+  // paper stack
+  var pg=trayItems[0];for(var i=0;i<4;i++){ctx.fillStyle='#fbf8f0';ctx.fillRect(pg.x-i*1.6,pg.y-i*1.6,pg.w,pg.h);ctx.strokeStyle='#cbbf9d';ctx.lineWidth=1;ctx.strokeRect(pg.x-i*1.6,pg.y-i*1.6,pg.w,pg.h)}
+  ctx.fillStyle='#6a5a3a';ctx.font='10px Georgia';ctx.fillText('blank pages',pg.x-3,pg.y+pg.h+12);
+  // envelopes
+  var ev=trayItems[1];for(var j=0;j<3;j++){ctx.fillStyle='#d8c9a3';ctx.fillRect(ev.x-j*1.4,ev.y-j*1.4,ev.w,ev.h);ctx.strokeStyle='#a9926a';ctx.strokeRect(ev.x-j*1.4,ev.y-j*1.4,ev.w,ev.h)}ctx.fillStyle='#6a5a3a';ctx.fillText('envelopes',ev.x,ev.y+ev.h+12);
+  // wax, stamp, pen
+  var ws=trayItems[2];ctx.fillStyle='#9e1b32';roundedRect(ctx,ws.x,ws.y,ws.w,ws.h,4);ctx.fill();ctx.fillStyle='#c6a052';ctx.fillRect(ws.x+6,ws.y-8,ws.w-12,10);ctx.fillStyle='#7c1526';ctx.beginPath();ctx.arc(ws.x+ws.w/2,ws.y+ws.h/2,8,0,Math.PI*2);ctx.fill();
+  var pn=trayItems[3];ctx.save();ctx.translate(pn.x+pn.w/2,pn.y+pn.h/2);ctx.rotate(-.5);ctx.fillStyle='#191919';roundedRect(ctx,-pn.w/2,-3,pn.w,6,3);ctx.fill();ctx.fillStyle='#d1a24e';ctx.fillRect(pn.w/2-7,-3,7,6);ctx.restore();
+  // ink bottle
+  ctx.fillStyle='#2c2b2a';roundedRect(ctx,DESK.x+160,DESK.y-5,25,26,5);ctx.fill();ctx.fillStyle='#b89147';ctx.fillRect(DESK.x+165,DESK.y-11,15,8);
+  ctx.restore();
+}
+function drawWindowAndPigeon(){
+  ctx.save();
+  // exterior glow
+  var wg=ctx.createLinearGradient(0,WINDOW_A.y,0,WINDOW_A.y+WINDOW_A.h);wg.addColorStop(0,'#bcd8df');wg.addColorStop(.65,'#94b9c2');wg.addColorStop(1,'#6f9399');ctx.fillStyle=wg;ctx.fillRect(WINDOW_A.x,WINDOW_A.y,WINDOW_A.w,WINDOW_A.h);
+  // distant buildings
+  ctx.fillStyle='rgba(77,101,104,.45)';for(var b=0;b<6;b++){var bx=WINDOW_A.x+12+b*35,bh=50+(b%3)*26;ctx.fillRect(bx,WINDOW_A.y+WINDOW_A.h-30-bh,24,bh)}
+  ctx.fillStyle='#e5d4a8';ctx.fillRect(WINDOW_A.x-11,WINDOW_A.y-11,WINDOW_A.w+22,10);ctx.fillRect(WINDOW_A.x-11,WINDOW_A.y+WINDOW_A.h,WINDOW_A.w+22,12);
+  ctx.strokeStyle='#b28e4c';ctx.lineWidth=6;ctx.strokeRect(WINDOW_A.x,WINDOW_A.y,WINDOW_A.w,WINDOW_A.h);ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(WINDOW_A.x+WINDOW_A.w/2,WINDOW_A.y);ctx.lineTo(WINDOW_A.x+WINDOW_A.w/2,WINDOW_A.y+WINDOW_A.h);ctx.moveTo(WINDOW_A.x,WINDOW_A.y+WINDOW_A.h/2);ctx.lineTo(WINDOW_A.x+WINDOW_A.w,WINDOW_A.y+WINDOW_A.h/2);ctx.stroke();
+  // sill objects
+  ctx.fillStyle='#6e563c';ctx.fillRect(WINDOW_A.x-14,WINDOW_A.y+WINDOW_A.h,WINDOW_A.w+28,12);ctx.fillStyle='#4f6b57';ctx.beginPath();ctx.arc(WINDOW_A.x+25,WINDOW_A.y+WINDOW_A.h-15,16,0,Math.PI*2);ctx.fill();ctx.fillStyle='#6a815f';ctx.beginPath();ctx.arc(WINDOW_A.x+40,WINDOW_A.y+WINDOW_A.h-24,12,0,Math.PI*2);ctx.fill();
+  // pigeon
+  var flapOffset=pigeonFlap>0?Math.sin(performance.now()/38)*4:0;ctx.save();ctx.translate(PIGEON.x+pigeonOffset.x,PIGEON.y+pigeonOffset.y-Math.max(0,flapOffset*3));
+  softShadow(3,6,.2);ctx.fillStyle='#8f9299';ctx.beginPath();ctx.ellipse(0,0,18,12,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(-15,-8,8,0,Math.PI*2);ctx.fill();clearShadow();
+  ctx.fillStyle='#67727d';ctx.beginPath();ctx.ellipse(10,flapOffset,11,5,.28,0,Math.PI*2);ctx.fill();ctx.fillStyle='#4d5963';ctx.beginPath();ctx.ellipse(-1,-1,8,3,-.2,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#d4ad59';ctx.beginPath();ctx.moveTo(-23,-8);ctx.lineTo(-30,-7);ctx.lineTo(-23,-4);ctx.fill();ctx.fillStyle='#1b1b1b';ctx.beginPath();ctx.arc(-17,-10,1.5,0,Math.PI*2);ctx.fill();ctx.restore();
+  ctx.restore();
+}
+
+function drawEnvelopeBody(x,y,angle,w,h,flavor){
+  ctx.save();ctx.translate(x,y);ctx.rotate(angle);softShadow(4,8,.22);
+  var base=flavor==='spam'?'#e5c96c':'#eee3c6';ctx.fillStyle=base;roundedRect(ctx,-w/2,-h/2,w,h,4);ctx.fill();clearShadow();
+  ctx.strokeStyle='rgba(81,57,28,.33)';ctx.lineWidth=1;ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-w/2,-h/2);ctx.lineTo(0,2);ctx.lineTo(w/2,-h/2);ctx.strokeStyle='rgba(78,57,33,.22)';ctx.stroke();
+  if(flavor==='spam'){
+    ctx.fillStyle='#9e1b32';ctx.save();ctx.rotate(-.32);roundedRect(ctx,-w*.35,-5,w*.65,11,2);ctx.fill();ctx.fillStyle='#fff3e6';ctx.font='bold 7px Georgia';ctx.fillText('URGENT',-w*.28,3);ctx.restore();
+  }else{
+    ctx.fillStyle='#d6c39a';ctx.fillRect(w/2-17,-h/2+5,12,12);ctx.fillStyle='#9e7f4e';ctx.font='6px Georgia';ctx.fillText('✦',w/2-14,-h/2+14);
+  }
+  ctx.restore();
+}
+function drawFoldedBody(x,y,angle,w,h){
+  ctx.save();ctx.translate(x,y);ctx.rotate(angle);softShadow(3,7,.18);ctx.fillStyle='#fbf8f0';roundedRect(ctx,-w/2,-h/2,w,h,3);ctx.fill();clearShadow();ctx.strokeStyle='#cbbf9d';ctx.lineWidth=1;ctx.stroke();ctx.beginPath();ctx.moveTo(-w/2,0);ctx.lineTo(w/2,0);ctx.stroke();ctx.strokeStyle='rgba(90,74,40,.48)';ctx.beginPath();ctx.moveTo(-w*.3,-h*.2);ctx.lineTo(w*.2,-h*.2);ctx.stroke();ctx.restore();
+}
+function drawSealedBody(x,y,angle,w,h){
+  ctx.save();ctx.translate(x,y);ctx.rotate(angle);softShadow(4,8,.22);ctx.fillStyle='#ddcea9';roundedRect(ctx,-w/2,-h/2,w,h,4);ctx.fill();clearShadow();ctx.strokeStyle='#9f8656';ctx.lineWidth=1;ctx.stroke();ctx.beginPath();ctx.moveTo(-w/2,-h/2);ctx.lineTo(0,0);ctx.lineTo(w/2,-h/2);ctx.strokeStyle='rgba(0,0,0,.2)';ctx.stroke();var g=ctx.createRadialGradient(-2,-2,1,0,0,11);g.addColorStop(0,'#d84b5d');g.addColorStop(.55,'#9c2435');g.addColorStop(1,'#651522');ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,10,0,Math.PI*2);ctx.fill();ctx.fillStyle='rgba(255,255,255,.45)';ctx.font='7px Georgia';ctx.textAlign='center';ctx.fillText('✦',0,3);ctx.textAlign='left';ctx.restore();
+}
+
+function drawFlyingSprites(now){
+  for (var i=flyingSprites.length-1;i>=0;i--){
+    var s = flyingSprites[i];
+    var t = Math.min(1, (now-s.start)/s.duration);
+    var ease = 1-Math.pow(1-t,2);
+    var x = s.from.x + (s.to.x-s.from.x)*ease;
+    var y = s.from.y + (s.to.y-s.from.y)*ease;
+    var scale = 1-0.5*ease;
+    drawEnvelopeBody(x,y, ease*4, s.w*scale, s.h*scale, 'real');
+    if (t>=1){
+      flyingSprites.splice(i,1);
+      if (s.onDone) s.onDone();
+    }
+  }
+}
+
+function updateAndDrawParticles(){
+  for (var i=shredParticles.length-1;i>=0;i--){
+    var p = shredParticles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.15;
+    p.life -= p.decay;
+    if (p.life<=0){ shredParticles.splice(i,1); continue; }
+    ctx.save();
+    ctx.globalAlpha = Math.max(0,p.life);
+    ctx.translate(p.x,p.y); ctx.rotate(p.rot + p.y*0.02);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+    ctx.restore();
+  }
+}
+
+function draw(){
+  var now = performance.now();
+  ctx.clearRect(0,0,W,H);
+  drawSceneBackground();
+  drawShredder();
+  drawDoor();
+  drawMat();
+  drawDesk();
+  drawWindowAndPigeon();
+
+  for (var i=0;i<physicsObjects.length;i++){
+    var o = physicsObjects[i];
+    if (o.hidden) continue;
+    var p = o.body.position, a = o.body.angle;
+    // spotlight any folded letter while the envelope is open and waiting,
+    // since that's exactly the thing the person needs to find and drag
+    if (o.kind==='folded' && currentEnvelope && !currentEnvelope.letterId && !envelopeModal.classList.contains('hidden')){
+      var pulse = 0.5 + 0.5*Math.sin(now/260);
+      ctx.save();
+      ctx.translate(p.x,p.y);
+      ctx.beginPath();
+      ctx.ellipse(0,0,o.w*0.75,o.h*0.9,0,0,Math.PI*2);
+      var glow = ctx.createRadialGradient(0,0,2,0,0,o.w*0.9);
+      glow.addColorStop(0,'rgba(255,222,150,'+(0.35+0.25*pulse)+')');
+      glow.addColorStop(1,'rgba(255,222,150,0)');
+      ctx.fillStyle = glow;
+      ctx.fill();
+      ctx.restore();
+    }
+    if (o.kind==='mail') drawEnvelopeBody(p.x,p.y,a,o.w,o.h,o.flavor);
+    else if (o.kind==='folded') drawFoldedBody(p.x,p.y,a,o.w,o.h);
+    else if (o.kind==='sealed') drawSealedBody(p.x,p.y,a,o.w,o.h);
+  }
+
+  drawFlyingSprites(now);
+  updateAndDrawParticles();
+
+  // subtle atmosphere + vignette
+  var vg=ctx.createRadialGradient(W/2,H*.42,160,W/2,H*.5,720);
+  vg.addColorStop(0,'rgba(255,244,214,0)'); vg.addColorStop(.72,'rgba(20,15,10,.03)'); vg.addColorStop(1,'rgba(8,6,4,.30)');
+  ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+
+  var pc = mailCount();
+  var pileEl = document.getElementById('pileCount');
+  if (pc !== lastMailCount){
+    pileEl.textContent = pc + (pc===1?' letter on the mat':' letters on the mat');
+    lastMailCount = pc;
+  }
+
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+// seed the pile a little on load — mostly real, since spam is now rare
+setTimeout(function(){ spawnLetter('real'); }, 500);
+setTimeout(function(){ spawnLetter('real'); }, 1300);
+
+})();
+</script>
+</body>
+</html>
