@@ -1,0 +1,17 @@
+{
+  "name": "the-table-server-imap",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "nodemailer": "^6.9.14",
+    "imapflow": "^1.0.167",
+    "mailparser": "^3.7.1",
+    "nanoid": "^5.0.7",
+    "dotenv": "^16.4.5"
+  }
+}

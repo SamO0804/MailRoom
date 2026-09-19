@@ -1,0 +1,99 @@
+[
+  {
+    "id": "FYgZFMjTfC",
+    "direction": "out",
+    "from": "pigeonmailroom@gmail.com",
+    "to": "jakedeguzman2442@gmail.com",
+    "subject": "A letter from the table",
+    "body": "(a folded, handwritten letter — image attachments not wired up yet, this is placeholder text)",
+    "status": "lost",
+    "createdAt": 1789817884487
+  },
+  {
+    "id": "VYIFdn3rYU",
+    "direction": "out",
+    "from": "pigeonmailroom@gmail.com",
+    "to": "jakedeguzman2442@gmail.com",
+    "subject": "A letter from the table",
+    "body": "(a folded, handwritten letter — image attachments not wired up yet, this is placeholder text)",
+    "status": "delivered",
+    "createdAt": 1789817925244
+  },
+  {
+    "id": "LDjb3A_sJp",
+    "direction": "in",
+    "from": "\"Jake De Guzman\" <jakedeguzman2442@gmail.com>",
+    "to": "pigeonmailroom@gmail.com",
+    "subject": "subject test",
+    "body": "body test\n",
+    "status": "unread",
+    "createdAt": 1789818033000,
+    "imapUid": 7
+  },
+  {
+    "id": "5X4Yj9Zj2Q",
+    "direction": "in",
+    "from": "\"Sam Oddy\" <sam@oddy.net>",
+    "to": "pigeonmailroom@gmail.com",
+    "subject": "Test",
+    "body": "Hi\n",
+    "status": "unread",
+    "createdAt": 1789818085000,
+    "imapUid": 8
+  },
+  {
+    "id": "reECs2NFkc",
+    "direction": "in",
+    "from": "\"Alex Newman\" <alex101newman@gmail.com>",
+    "to": "pigeonmailroom@gmail.com",
+    "subject": "Testing",
+    "body": "Come through?\n",
+    "status": "unread",
+    "createdAt": 1789818341000,
+    "imapUid": 9
+  },
+  {
+    "id": "G8k0uHVE3h",
+    "direction": "in",
+    "from": "\"Sam Oddy\" <sam@oddy.net>",
+    "to": "pigeonmailroom@gmail.com",
+    "subject": "Test",
+    "body": "Hi\n",
+    "status": "unread",
+    "createdAt": 1789818339000,
+    "imapUid": 10
+  },
+  {
+    "id": "0RHJHPBuYe",
+    "direction": "in",
+    "from": "\"Jake De Guzman\" <jakedeguzman2442@gmail.com>",
+    "to": "pigeonmailroom@gmail.com",
+    "subject": "test 2",
+    "body": "test 2\n",
+    "status": "unread",
+    "createdAt": 1789819110000,
+    "imapUid": 11
+  },
+  {
+    "id": "f5_3qWTDmr",
+    "direction": "in",
+    "from": "\"Jake De Guzman\" <jakedeguzman2442@gmail.com>",
+    "to": "pigeonmailroom@gmail.com",
+    "subject": "please work",
+    "body": "please work\n",
+    "status": "unread",
+    "createdAt": 1789824005000,
+    "imapUid": 12
+  },
+  {
+    "id": "xKB4DqNLcY",
+    "direction": "in",
+    "from": "\"Alex Newman\" <alex101newman@gmail.com>",
+    "to": "pigeonmailroom@gmail.com",
+    "subject": "Test",
+    "body": "Test\n",
+    "status": "unread",
+    "createdAt": 1789824049000,
+    "imapUid": 13
+  }
+]
